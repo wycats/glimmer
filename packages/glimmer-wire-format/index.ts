@@ -17,7 +17,7 @@ export type str = string;
 export type TemplateReference = number;
 export type YieldTo = str;
 
-function is<T extends any[]>(variant: string): (value: any[]) => value is T {
+function is<T extends any[]>(variant: number): (value: any[]) => value is T {
   return function(value: any[]): value is T {
     return value[0] === variant;
   };
@@ -36,13 +36,22 @@ export namespace Expressions {
   type Params = Core.Params;
   type Hash = Core.Hash;
 
-  export type Unknown        = ['unknown', Path];
-  export type Arg            = ['arg', Path];
-  export type Get            = ['get', Path];
+  export enum TemplateExpressions {
+    unknown,
+    arg,
+    get,
+    hasBlock,
+    hasBlockParams,
+    notDefined
+  }
+
+  export type Unknown        = [TemplateExpressions.unknown, Path];
+  export type Arg            = [TemplateExpressions.arg, Path];
+  export type Get            = [TemplateExpressions.get, Path];
   export type Value          = str | number | boolean | null; // tslint:disable-line
-  export type HasBlock       = ['has-block', str];
-  export type HasBlockParams = ['has-block-params', str];
-  export type Undefined      = ['undefined'];
+  export type HasBlock       = [TemplateExpressions.hasBlock, str];
+  export type HasBlockParams = [TemplateExpressions.hasBlockParams, str];
+  export type Undefined      = [TemplateExpressions.notDefined];
 
   export type Expression =
       Unknown
@@ -68,14 +77,14 @@ export namespace Expressions {
     [3]: Hash;
   }
 
-  export const isUnknown        = is<Unknown>('unknown');
-  export const isArg            = is<Arg>('arg');
-  export const isGet            = is<Get>('get');
-  export const isConcat         = is<Concat>('concat');
-  export const isHelper         = is<Helper>('helper');
-  export const isHasBlock       = is<HasBlock>('has-block');
-  export const isHasBlockParams = is<HasBlockParams>('has-block-params');
-  export const isUndefined      = is<Undefined>('undefined');
+  export const isUnknown        = is<Unknown>(1);
+  export const isArg            = is<Arg>(2);
+  export const isGet            = is<Get>(3);
+  export const isConcat         = is<Concat>(4);
+  export const isHelper         = is<Helper>(5);
+  export const isHasBlock       = is<HasBlock>(6);
+  export const isHasBlockParams = is<HasBlockParams>(7);
+  export const isUndefined      = is<Undefined>(8);
 
   export function isPrimitiveValue(value: any): value is Value {
     if (value === null) {
@@ -88,40 +97,58 @@ export namespace Expressions {
 export type Expression = Expressions.Expression;
 
 export namespace Statements {
+
+  export enum TemplateStatements {
+    text,
+    append,
+    comment,
+    modifier,
+    block,
+    openElement,
+    flushElement,
+    closeElement,
+    staticAttr,
+    dynamicAttr,
+    yieldz,
+    dynamicArg,
+    staticArg,
+    trustingArg
+  }
+
   type Expression = Expressions.Expression;
   type Params = Core.Params;
   type Hash = Core.Hash;
   type Path = Core.Path;
 
-  export type Text          = ['text', str];
-  export type Append        = ['append', Expression, boolean];
-  export type Comment       = ['comment', str];
-  export type Modifier      = ['modifier', Path, Params, Hash];
-  export type Block         = ['block', Path, Params, Hash, TemplateReference, TemplateReference];
-  export type OpenElement   = ['open-element', str, str[]];
-  export type FlushElement  = ['flush-element'];
-  export type CloseElement  = ['close-element'];
-  export type StaticAttr    = ['static-attr', str, Expression, str];
-  export type DynamicAttr   = ['dynamic-attr', str, Expression, str];
-  export type Yield         = ['yield', YieldTo, Params];
-  export type DynamicArg    = ['dynamic-arg', str, Expression];
-  export type StaticArg     = ['static-arg', str, Expression];
-  export type TrustingAttr  = ['trusting-attr', str, Expression, str];
+  export type Text          = [TemplateStatements.text, str];
+  export type Append        = [TemplateStatements.append, Expression, boolean];
+  export type Comment       = [TemplateStatements.comment, str];
+  export type Modifier      = [TemplateStatements.modifier, Path, Params, Hash];
+  export type Block         = [TemplateStatements.block, Path, Params, Hash, TemplateReference, TemplateReference];
+  export type OpenElement   = [TemplateStatements.openElement, str, str[]];
+  export type FlushElement  = [TemplateStatements.flushElement];
+  export type CloseElement  = [TemplateStatements.closeElement];
+  export type StaticAttr    = [TemplateStatements.staticAttr, str, Expression, str];
+  export type DynamicAttr   = [TemplateStatements.dynamicAttr, str, Expression, str];
+  export type Yield         = [TemplateStatements.yieldz, YieldTo, Params];
+  export type DynamicArg    = [TemplateStatements.dynamicArg, str, Expression];
+  export type StaticArg     = [TemplateStatements.staticArg, str, Expression];
+  export type TrustingAttr  = [TemplateStatements.trustingArg, str, Expression, str];
 
-  export const isText         = is<Text>('text');
-  export const isAppend       = is<Append>('append');
-  export const isComment      = is<Comment>('comment');
-  export const isModifier     = is<Modifier>('modifier');
-  export const isBlock        = is<Block>('block');
-  export const isOpenElement  = is<OpenElement>('open-element');
-  export const isFlushElement = is<FlushElement>('flush-element');
-  export const isCloseElement = is<CloseElement>('close-element');
-  export const isStaticAttr   = is<StaticAttr>('static-attr');
-  export const isDynamicAttr  = is<DynamicAttr>('dynamic-attr');
-  export const isYield        = is<Yield>('yield');
-  export const isDynamicArg   = is<DynamicArg>('dynamic-arg');
-  export const isStaticArg    = is<StaticArg>('static-arg');
-  export const isTrustingAttr = is<TrustingAttr>('trusting-attr');
+  export const isText         = is<Text>(1);
+  export const isAppend       = is<Append>(2);
+  export const isComment      = is<Comment>(3);
+  export const isModifier     = is<Modifier>(4);
+  export const isBlock        = is<Block>(5);
+  export const isOpenElement  = is<OpenElement>(6);
+  export const isFlushElement = is<FlushElement>(7);
+  export const isCloseElement = is<CloseElement>(8);
+  export const isStaticAttr   = is<StaticAttr>(9);
+  export const isDynamicAttr  = is<DynamicAttr>(10);
+  export const isYield        = is<Yield>(11);
+  export const isDynamicArg   = is<DynamicArg>(12);
+  export const isStaticArg    = is<StaticArg>(13);
+  export const isTrustingAttr = is<TrustingAttr>(14);
 
   export type Statement =
       Text

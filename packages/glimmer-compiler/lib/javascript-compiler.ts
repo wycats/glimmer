@@ -9,7 +9,8 @@ import {
   Core,
   Statement,
   Expression,
-  Expressions
+  Expressions,
+  Statements
 } from 'glimmer-wire-format';
 
 type str = string;
@@ -17,6 +18,9 @@ type Params = Core.Params;
 type Hash = Core.Hash;
 type Path = Core.Path;
 type StackValue = Expression | Params | Hash | str;
+
+let E = Expressions.TemplateExpressions;
+let T = Statements.TemplateStatements;
 
 export class Block {
   statements: Statement[] = [];
@@ -112,81 +116,81 @@ export default class JavaScriptCompiler<T extends TemplateMeta> {
   /// Statements
 
   text(content: string) {
-    this.push(['text', content]);
+    this.push([T.text, content]);
   }
 
   append(trusted: boolean) {
-    this.push(['append', this.popValue<Expression>(), trusted]);
+    this.push([T.append, this.popValue<Expression>(), trusted]);
   }
 
   comment(value: string) {
-    this.push(['comment', value]);
+    this.push([T.comment, value]);
   }
 
   modifier(path: Path) {
     let params = this.popValue<Params>();
     let hash = this.popValue<Hash>();
 
-    this.push(['modifier', path, params, hash]);
+    this.push([T.modifier, path, params, hash]);
   }
 
   block(path: Path, template: number, inverse: number) {
     let params = this.popValue<Params>();
     let hash = this.popValue<Hash>();
 
-    this.push(['block', path, params, hash, template, inverse]);
+    this.push([T.block, path, params, hash, template, inverse]);
   }
 
   openElement(tag: str, blockParams: string[]) {
-    this.push(['open-element', tag, blockParams]);
+    this.push([T.openElement, tag, blockParams]);
   }
 
   flushElement() {
-    this.push(['flush-element']);
+    this.push([T.flushElement]);
   }
 
   closeElement() {
-    this.push(['close-element']);
+    this.push([T.closeElement]);
   }
 
   staticAttr(name: str, namespace: str) {
     let value = this.popValue<Expression>();
-    this.push(['static-attr', name, value, namespace]);
+    this.push([T.staticAttr, name, value, namespace]);
   }
 
   dynamicAttr(name: str, namespace: str) {
     let value = this.popValue<Expression>();
-    this.push(['dynamic-attr', name, value, namespace]);
+    this.push([T.dynamicAttr, name, value, namespace]);
   }
 
   trustingAttr(name: str, namespace: str) {
     let value = this.popValue<Expression>();
-    this.push(['trusting-attr', name, value, namespace]);
+    this.push([T.trustingArg, name, value, namespace]);
   }
 
   staticArg(name: str) {
     let value = this.popValue<Expression>();
-    this.push(['static-arg', name.slice(1), value]);
+    this.push([T.staticArg, name.slice(1), value]);
   }
 
   dynamicArg(name: str) {
     let value = this.popValue<Expression>();
-    this.push(['dynamic-arg', name.slice(1), value]);
+    this.push([T.dynamicArg, name.slice(1), value]);
   }
 
   yield(to: string) {
     let params = this.popValue<Params>();
-    this.push(['yield', to, params]);
+    this.push([T.yieldz, to, params]);
     this.template.block.yields.add(to);
   }
 
   hasBlock(name: string) {
-    this.pushValue<Expressions.HasBlock>(['has-block', name]);
+    this.pushValue<Expressions.HasBlock>([E.hasBlock, name]);
     this.template.block.yields.add(name);
   }
 
   hasBlockParams(name: string) {
-    this.pushValue<Expressions.HasBlockParams>(['has-block-params', name]);
+    this.pushValue<Expressions.HasBlockParams>([E.hasBlockParams, name]);
     this.template.block.yields.add(name);
   }
 
@@ -194,23 +198,23 @@ export default class JavaScriptCompiler<T extends TemplateMeta> {
 
   literal(value: Expressions.Value | undefined) {
     if (value === undefined) {
-      this.pushValue<Expressions.Undefined>(['undefined']);
+      this.pushValue<Expressions.Undefined>([E.notDefined]);
     } else {
       this.pushValue<Expressions.Value>(value);
     }
   }
 
   unknown(path: string[]) {
-    this.pushValue<Expressions.Unknown>(['unknown', path]);
+    this.pushValue<Expressions.Unknown>([E.unknown, path]);
   }
 
   arg(path: string[]) {
     this.template.block.named.add(path[0]);
-    this.pushValue<Expressions.Arg>(['arg', path]);
+    this.pushValue<Expressions.Arg>([E.arg, path]);
   }
 
   get(path: string[]) {
-    this.pushValue<Expressions.Get>(['get', path]);
+    this.pushValue<Expressions.Get>([E.get, path]);
   }
 
   concat() {
