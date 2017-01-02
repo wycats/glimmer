@@ -76,6 +76,8 @@ import {
   VOLATILE_TAG,
   DirtyableTag,
   RevisionTag,
+  Tag,
+  TagWrapper,
   Reference,
   PathReference,
   OpaqueIterator,
@@ -174,7 +176,7 @@ class EmptyIterator implements OpaqueIterator {
 const EMPTY_ITERATOR = new EmptyIterator();
 
 class Iterable implements AbstractIterable<Opaque, Opaque, IterationItem<Opaque, Opaque>, UpdatableReference<Opaque>, UpdatableReference<Opaque>> {
-  public tag: RevisionTag;
+  public tag: Tag;
   private ref: Reference<Opaque>;
   private keyFor: KeyFor<Opaque>;
 
@@ -238,7 +240,7 @@ export class BasicComponent {
 }
 
 export class EmberishCurlyComponent extends GlimmerObject {
-  public dirtinessTag = new DirtyableTag();
+  public dirtinessTag: TagWrapper<DirtyableTag> = DirtyableTag.create();
   public tagName: string = null;
   public attributeBindings: string[] = null;
   public attrs: Attrs;
@@ -252,7 +254,7 @@ export class EmberishCurlyComponent extends GlimmerObject {
   }
 
   recompute() {
-    this.dirtinessTag.dirty();
+    this.dirtinessTag.inner.dirty();
   }
 
   didInitAttrs(options : { attrs : Attrs }) {}
@@ -267,7 +269,7 @@ export class EmberishCurlyComponent extends GlimmerObject {
 }
 
 export class EmberishGlimmerComponent extends GlimmerObject {
-  public dirtinessTag = new DirtyableTag();
+  public dirtinessTag: TagWrapper<DirtyableTag> = DirtyableTag.create();
   public attrs: Attrs;
   public element: Element;
   public bounds: Bounds;
@@ -278,7 +280,7 @@ export class EmberishGlimmerComponent extends GlimmerObject {
   }
 
   recompute() {
-    this.dirtinessTag.dirty();
+    this.dirtinessTag.inner.dirty();
   }
 
   didInitAttrs(options : { attrs : Attrs }) {}
@@ -785,8 +787,8 @@ export class TestEnvironment extends Environment {
     return new EmberishConditionalReference(reference);
   }
 
-  macros(): { blocks: BlockMacros, inlines: InlineMacros } {
-    let macros = super.macros();
+  populateBuiltins(): { blocks: BlockMacros, inlines: InlineMacros } {
+    let macros = super.populateBuiltins();
     populateBlocks(macros.blocks, macros.inlines);
     return macros;
   }
@@ -892,8 +894,8 @@ export class TestDynamicScope implements DynamicScope {
   }
 }
 
-class DynamicComponentReference implements PathReference<ComponentDefinition<Opaque>> {
-  public tag: RevisionTag;
+export class DynamicComponentReference implements PathReference<ComponentDefinition<Opaque>> {
+  public tag: Tag;
 
   constructor(private nameRef: PathReference<Opaque>, private env: Environment, private symbolTable: SymbolTable) {
     this.tag = nameRef.tag;
@@ -917,8 +919,7 @@ class DynamicComponentReference implements PathReference<ComponentDefinition<Opa
 }
 
 function dynamicComponentFor(vm: VM, symbolTable: SymbolTable) {
-  let args = vm.getArgs();
-  let nameRef = args.positional.at(0);
+  let nameRef = vm.getArgs() as PathReference<Opaque>;
   let env = vm.env;
   return new DynamicComponentReference(nameRef, env, symbolTable);
 };

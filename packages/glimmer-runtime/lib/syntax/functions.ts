@@ -1,32 +1,30 @@
 import * as WireFormat from 'glimmer-wire-format';
 import OpcodeBuilder from '../compiled/opcodes/builder';
 import { CompiledExpression } from '../compiled/expressions';
-import CompiledValue from '../compiled/expressions/value';
 import CompiledHasBlock, { CompiledHasBlockParams } from '../compiled/expressions/has-block';
-import { BaselineSyntax } from '../scanner';
-import { LOGGER, Opaque, Option, dict, assert, unwrap, unreachable } from 'glimmer-util';
-import CompiledLookup, {
-  CompiledSelf,
-  CompiledSymbol,
-  CompiledInPartialName
-} from '../compiled/expressions/lookups';
+import { BaselineSyntax, InlineBlock } from '../scanner';
 import CompiledHelper from '../compiled/expressions/helper';
-import CompiledConcat from '../compiled/expressions/concat';
 import {
-  COMPILED_EMPTY_POSITIONAL_ARGS,
-  COMPILED_EMPTY_NAMED_ARGS,
-  EMPTY_BLOCKS,
-  CompiledArgs,
-  CompiledPositionalArgs,
-  CompiledNamedArgs,
-  Blocks as BlocksSyntax
+  CompiledArgs
 } from '../compiled/expressions/args';
 import {
   CompiledGetBlockBySymbol,
   CompiledInPartialGetBlock
 } from '../compiled/expressions/has-block';
 
-import { CompiledFunctionExpression } from '../compiled/expressions/function';
+import {
+  EMPTY_ARRAY
+} from '../utils';
+
+import {
+  LOGGER,
+  Opaque,
+  Option,
+  dict,
+  assert,
+  unwrap,
+  unreachable
+} from 'glimmer-util';
 
 export type SexpExpression = BaselineSyntax.AnyExpression & { 0: string };
 export type Syntax = SexpExpression | BaselineSyntax.AnyStatement;
@@ -92,7 +90,7 @@ STATEMENTS.add('static-attr', (sexp: S.StaticAttr, builder: OpcodeBuilder) => {
 STATEMENTS.add('any-dynamic-attr', (sexp: BaselineSyntax.AnyDynamicAttr, builder: OpcodeBuilder) => {
   let [, name, value, namespace, trusting] = sexp;
 
-  builder.putValue(value);
+  expr(value, builder);
 
   if (namespace) {
     builder.dynamicAttrNS(name, namespace, trusting);
@@ -114,7 +112,7 @@ STATEMENTS.add('optimized-append', (sexp: BaselineSyntax.OptimizedAppend, builde
 
   if (returned === true) return;
 
-  builder.putValue(returned[1]);
+  expr(value, builder);
 
   if (trustingMorph) {
     builder.trustingAppend();
@@ -157,12 +155,13 @@ STATEMENTS.add('scanned-component', (sexp: BaselineSyntax.ScannedComponent, buil
   let [, tag, attrs, rawArgs, rawBlock] = sexp;
   let block = rawBlock && rawBlock.scan();
 
-  let args = compileBlockArgs(null, rawArgs, { default: block, inverse: null }, builder);
-
   let definition = builder.env.getComponentDefinition([tag], builder.symbolTable);
-
   builder.putComponentDefinition(definition);
-  builder.openComponent(args, attrs.scan());
+  compileList(rawArgs && rawArgs[1], builder);
+  compileBlocks(block, null, builder);
+  builder.pushReifiedArgs(0, rawArgs ? rawArgs[0] : EMPTY_ARRAY, !!block, false);
+
+  builder.openComponent(attrs.scan());
   builder.closeComponent();
 });
 
@@ -200,20 +199,20 @@ STATEMENTS.add('dynamic-partial', (sexp: BaselineSyntax.DynamicPartial, builder)
 STATEMENTS.add('yield', function(this: undefined, sexp: WireFormat.Statements.Yield, builder) {
   let [, to, params] = sexp;
 
-  let args = compileArgs(params, null, builder);
-  builder.yield(args, to);
+  if (params) compileList(params, builder);
+  builder.yield(params ? params.length : 0, to);
 });
 
-let EXPRESSIONS = new Compilers<SexpExpression, CompiledExpression<Opaque>>();
+let EXPRESSIONS = new Compilers<SexpExpression, CompiledExpression<Opaque> | void>();
 
 import E = WireFormat.Expressions;
 import C = WireFormat.Core;
 
-export function expr(expression: BaselineSyntax.AnyExpression, builder: OpcodeBuilder): CompiledExpression<Opaque> {
+export function expr(expression: BaselineSyntax.AnyExpression, builder: OpcodeBuilder): void {
   if (Array.isArray(expression)) {
-    return EXPRESSIONS.compile(expression, builder);
+    EXPRESSIONS.compile(expression, builder);
   } else {
-    return new CompiledValue(expression);
+    builder.pushPrimitive(expression);
   }
 }
 
@@ -223,17 +222,18 @@ EXPRESSIONS.add('unknown', (sexp: E.Unknown, builder: OpcodeBuilder) => {
   if (builder.env.hasHelper(path, builder.symbolTable)) {
     return new CompiledHelper(path, builder.env.lookupHelper(path, builder.symbolTable), CompiledArgs.empty(), builder.symbolTable);
   } else {
-    return compileRef(path, builder);
+    compilePath(path, builder);
   }
 });
 
 EXPRESSIONS.add('concat', ((sexp: E.Concat, builder: OpcodeBuilder) => {
-  let params = sexp[1].map(p => expr(p, builder));
-  return new CompiledConcat(params);
+  let parts = sexp[1];
+  parts.forEach(p => expr(p, builder));
+  builder.concat(parts.length);
 }) as any);
 
 EXPRESSIONS.add('function', (sexp: BaselineSyntax.FunctionExpression, builder: OpcodeBuilder) => {
-  return new CompiledFunctionExpression(sexp[1], builder.symbolTable);
+  builder.function(sexp[1]);
 });
 
 EXPRESSIONS.add('helper', (sexp: E.Helper, builder: OpcodeBuilder) => {
@@ -241,37 +241,39 @@ EXPRESSIONS.add('helper', (sexp: E.Helper, builder: OpcodeBuilder) => {
   let [, path, params, hash] = sexp;
 
   if (env.hasHelper(path, symbolTable)) {
-    let args = compileArgs(params, hash, builder);
-    return new CompiledHelper(path, env.lookupHelper(path, symbolTable), args, symbolTable);
+    compileArgs(params, hash, builder);
+    builder.pushReifiedArgs(params ? params.length : 0, hash ? hash[0] : EMPTY_ARRAY);
+    builder.helper(env.lookupHelper(path, symbolTable));
   } else {
     throw new Error(`Compile Error: ${path.join('.')} is not a helper`);
   }
 });
 
 EXPRESSIONS.add('get', (sexp: E.Get, builder: OpcodeBuilder) => {
-  return compileRef(sexp[1], builder);
+  // TODO: More triage in the precompiler
+  compilePath(sexp[1], builder);
 });
 
-EXPRESSIONS.add('undefined', (_sexp, _builder) => {
-  return new CompiledValue(undefined);
+EXPRESSIONS.add('undefined', (_sexp, builder) => {
+  return builder.pushPrimitive(undefined);
 });
 
 EXPRESSIONS.add('arg', (sexp: E.Arg, builder: OpcodeBuilder) => {
   let [, parts] = sexp;
   let head = parts[0];
   let named: Option<number>, partial: Option<number>;
+  let path: string[];
 
   if (named = builder.symbolTable.getSymbol('named', head)) {
-    let path = parts.slice(1);
-    let inner = new CompiledSymbol(named, head);
-    return CompiledLookup.create(inner, path);
+    builder.pushSymbol(named);
+    path = parts.slice(1);
   } else if (partial = builder.symbolTable.getPartialArgs()) {
-    let path = parts.slice(1);
-    let inner = new CompiledInPartialName(partial, head);
-    return CompiledLookup.create(inner, path);
+    throw new Error("TODO: Partial");
   } else {
     throw new Error(`[BUG] @${parts.join('.')} is not a valid lookup path.`);
   }
+
+  path.forEach(p => builder.getKey(p));
 });
 
 EXPRESSIONS.add('has-block', (sexp: E.HasBlock, builder) => {
@@ -280,8 +282,7 @@ EXPRESSIONS.add('has-block', (sexp: E.HasBlock, builder) => {
   let yields: Option<number>, partial: Option<number>;
 
   if (yields = builder.symbolTable.getSymbol('yields', blockName)) {
-    let inner = new CompiledGetBlockBySymbol(yields, blockName);
-    return new CompiledHasBlock(inner);
+    builder.hasBlock(blockName);
   } else if (partial = builder.symbolTable.getPartialArgs()) {
     let inner = new CompiledInPartialGetBlock(partial, blockName);
     return new CompiledHasBlock(inner);
@@ -295,8 +296,7 @@ EXPRESSIONS.add('has-block-params', (sexp: E.HasBlockParams, builder) => {
   let yields: Option<number>, partial: Option<number>;
 
   if (yields = builder.symbolTable.getSymbol('yields', blockName)) {
-    let inner = new CompiledGetBlockBySymbol(yields, blockName);
-    return new CompiledHasBlockParams(inner);
+    builder.hasBlockParams(blockName);
   } else if (partial = builder.symbolTable.getPartialArgs()) {
     let inner = new CompiledInPartialGetBlock(partial, blockName);
     return new CompiledHasBlockParams(inner);
@@ -306,54 +306,45 @@ EXPRESSIONS.add('has-block-params', (sexp: E.HasBlockParams, builder) => {
 
 });
 
-export function compileArgs(params: Option<WireFormat.Core.Params>, hash: Option<WireFormat.Core.Hash>, builder: OpcodeBuilder): CompiledArgs {
-  let compiledParams = compileParams(params, builder);
-  let compiledHash = compileHash(hash, builder);
-  return CompiledArgs.create(compiledParams, compiledHash, EMPTY_BLOCKS);
+export function compileArgs(params: Option<WireFormat.Core.Params>, hash: Option<WireFormat.Core.Hash>, builder: OpcodeBuilder): { positional: number, named: number } {
+  let positional = params ? params.length : 0;
+  let named = hash ? hash.length : 0;
+  if (params) compileList(params, builder);
+  if (hash) compileList(hash[1], builder);
+
+  return { positional, named };
 }
 
-export function compileBlockArgs(params: Option<WireFormat.Core.Params>, hash: Option<WireFormat.Core.Hash>, blocks: BlocksSyntax, builder: OpcodeBuilder): CompiledArgs {
-  let compiledParams = compileParams(params, builder);
-  let compiledHash = compileHash(hash, builder);
-  return CompiledArgs.create(compiledParams, compiledHash, blocks);
+export function compileList(params: Option<WireFormat.Core.Expression[]>, builder: OpcodeBuilder) {
+  if (!params) return;
+  params.forEach(p => expr(p, builder));
 }
 
-export function compileBaselineArgs(args: BaselineSyntax.Args, builder: OpcodeBuilder): CompiledArgs {
-  let [params, hash, _default, inverse] = args;
-  return CompiledArgs.create(compileParams(params, builder), compileHash(hash, builder), { default: _default, inverse });
+const EMPTY_BLOCKS = { default: false, inverse: false };
+
+export function compileBlocks(block: Option<InlineBlock>, inverse: Option<InlineBlock>, builder: OpcodeBuilder): { default: boolean, inverse: boolean } {
+  if (!block && !inverse) return EMPTY_BLOCKS;
+  builder.pushBlocks(block, inverse);
+  return { default: !!block, inverse: !!inverse };
 }
 
-function compileParams(params: Option<WireFormat.Core.Params>, builder: OpcodeBuilder): CompiledPositionalArgs {
-  if (!params || params.length === 0) return COMPILED_EMPTY_POSITIONAL_ARGS;
-  let compiled = params.map(p => expr(p, builder));
-  return CompiledPositionalArgs.create(compiled);
-}
-
-function compileHash(hash: Option<WireFormat.Core.Hash>, builder: OpcodeBuilder): CompiledNamedArgs {
-  if (!hash) return COMPILED_EMPTY_NAMED_ARGS;
-  let [keys, values] = hash;
-  if (keys.length === 0) return COMPILED_EMPTY_NAMED_ARGS;
-
-  let compiled = values.map(p => expr(p, builder));
-  return new CompiledNamedArgs(keys, compiled);
-}
-
-function compileRef(parts: string[], builder: OpcodeBuilder) {
+function compilePath(parts: string[], builder: OpcodeBuilder) {
   let head = parts[0];
   let local: Option<number>;
+  let path: string[];
 
   if (head === null) { // {{this.foo}}
-    let inner = new CompiledSelf();
-    let path = parts.slice(1) as string[];
-    return CompiledLookup.create(inner, path);
+    builder.pushSelf();
+    path = parts.slice(1);
   } else if (local = builder.symbolTable.getSymbol('local', head)) {
-    let path = parts.slice(1) as string[];
-    let inner = new CompiledSymbol(local, head);
-    return CompiledLookup.create(inner, path);
+    builder.pushSymbol(local);
+    path = parts.slice(1);
   } else {
-    let inner = new CompiledSelf();
-    return CompiledLookup.create(inner, parts as string[]);
+    builder.pushSelf();
+    path = parts;
   }
+
+  path.forEach(p => builder.getKey(p));
 }
 
 export type NestedBlockSyntax = BaselineSyntax.NestedBlock;
@@ -471,14 +462,22 @@ export function populateBuiltins(blocks: Blocks = new Blocks(), inlines: Inlines
     // END:   Noop
     //        Exit
 
-    let [,, params, hash, _default, inverse] = sexp;
-    let args = compileArgs(params, hash, builder);
+    let [,, params,, _default, inverse] = sexp;
 
-    builder.putArgs(args);
+    if (!params) {
+      throw new Error(`SYNTAX ERROR: #if requires an argument`);
+    }
+
+    let condition = builder.getLocal();
+    expr(params[0], builder);
+    builder.putLocal(condition);
+
+    builder.pushLocal(condition);
     builder.test('environment');
 
     builder.labelled(null, b => {
       if (_default && inverse) {
+        builder.pushLocal(condition);
         b.jumpUnless('ELSE');
         b.evaluate(_default);
         b.jump('END');
@@ -509,7 +508,6 @@ export function populateBuiltins(blocks: Blocks = new Blocks(), inlines: Inlines
     let [,, params, hash, _default, inverse] = sexp;
     let args = compileArgs(params, hash, builder);
 
-    builder.putArgs(args);
     builder.test('environment');
 
     builder.labelled(null, b => {
@@ -542,9 +540,8 @@ export function populateBuiltins(blocks: Blocks = new Blocks(), inlines: Inlines
     //        Exit
 
     let [,, params, hash, _default, inverse] = sexp;
-    let args = compileArgs(params, hash, builder);
+    compileArgs(params, hash, builder);
 
-    builder.putArgs(args);
     builder.test('environment');
 
     builder.labelled(null, b => {

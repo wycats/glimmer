@@ -1,10 +1,10 @@
 import { EvaluatedArgs } from '../expressions/args';
 import { expect } from 'glimmer-util';
-import { RevisionTag, Reference, ConstReference, ReferenceIterator, IterationArtifacts } from 'glimmer-reference';
-import { APPEND_OPCODES, OpcodeName as Op } from '../../opcodes';
+import { Tag, Reference, ConstReference, ReferenceIterator, IterationArtifacts } from 'glimmer-reference';
+import { APPEND_OPCODES, Op as Op } from '../../opcodes';
 
 class IterablePresenceReference implements Reference<boolean> {
-  public tag: RevisionTag;
+  public tag: Tag;
   private artifacts: IterationArtifacts;
 
   constructor(artifacts: IterationArtifacts) {
@@ -33,7 +33,7 @@ APPEND_OPCODES.add(Op.EnterList, (vm, { op1: _slice }) => {
 
 APPEND_OPCODES.add(Op.ExitList, vm => vm.exitList());
 
-APPEND_OPCODES.add(Op.EnterWithKey, (vm, { op2: _slice }) => {
+APPEND_OPCODES.add(Op.StartIterate, (vm, { op2: _slice }) => {
   let key = expect(vm.frame.getKey(), 'EnterWithKeyOpcode expects a populated key register');
   let slice = vm.constants.getSlice(_slice);
   vm.enterWithKey(key, slice);
@@ -42,7 +42,7 @@ APPEND_OPCODES.add(Op.EnterWithKey, (vm, { op2: _slice }) => {
 const TRUE_REF = new ConstReference(true);
 const FALSE_REF = new ConstReference(false);
 
-APPEND_OPCODES.add(Op.NextIter, (vm, { op1: end }) => {
+APPEND_OPCODES.add(Op.Iterate, (vm, { op1: end }) => {
   let item = vm.frame.getIterator().next();
 
   if (item) {

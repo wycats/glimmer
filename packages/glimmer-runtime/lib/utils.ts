@@ -1,6 +1,6 @@
 import { Option, Dict, dict } from 'glimmer-util';
 
-export const EMPTY_ARRAY = Object.freeze([]);
+export const EMPTY_ARRAY: never[] = Object.freeze([]) as never[];
 export const EMPTY_DICT: Dict<any> = Object.freeze(dict<any>());
 
 export interface EnumerableCallback<T> {

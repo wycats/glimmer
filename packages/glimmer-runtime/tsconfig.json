@@ -11,6 +11,7 @@
 
   "include": [
     "index.ts",
-    "lib/**/*.ts"
+    "lib/**/*.ts",
+    "node_modules/@types/qunit/**/*.ts"
   ]
 }

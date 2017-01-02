@@ -2,14 +2,16 @@ import Bounds, { Cursor, DestroyableBounds, clear } from './bounds';
 
 import { DOMChanges, DOMTreeConstruction } from './dom/helper';
 
-import { LOGGER, Option, Destroyable, Stack, LinkedList, LinkedListNode, assert, expect } from 'glimmer-util';
+import { Option, Destroyable, Stack, LinkedList, LinkedListNode, assert, expect } from 'glimmer-util';
 
 import { Environment } from './environment';
 
 import { VM } from './vm';
 
 import {
-  PathReference
+  PathReference,
+  Reference,
+  VersionedReference
 } from 'glimmer-reference';
 
 import {
@@ -45,8 +47,8 @@ class Last {
 export interface ElementOperations {
   addStaticAttribute(element: Simple.Element, name: string, value: string): void;
   addStaticAttributeNS(element: Simple.Element, namespace: string, name: string, value: string): void;
-  addDynamicAttribute(element: Simple.Element, name: string, value: PathReference<string>, isTrusting: boolean): void;
-  addDynamicAttributeNS(element: Simple.Element, namespace: string, name: string, value: PathReference<string>, isTrusting: boolean): void;
+  addDynamicAttribute(element: Simple.Element, name: string, value: VersionedReference<string>, isTrusting: boolean): void;
+  addDynamicAttributeNS(element: Simple.Element, namespace: string, name: string, value: VersionedReference<string>, isTrusting: boolean): void;
   flush(element: Simple.Element, vm: VM): void;
 }
 
@@ -132,7 +134,7 @@ export class ElementStack implements Cursor {
 
     let topElement = elementStack.pop();
     nextSiblingStack.pop();
-    LOGGER.debug(`-> element stack ${this.elementStack.toArray().map(e => e.tagName).join(', ')}`);
+    // LOGGER.debug(`-> element stack ${this.elementStack.toArray().map(e => e.tagName).join(', ')}`);
 
     this.element = expect(elementStack.current, "can't pop past the last element");
     this.nextSibling = nextSiblingStack.current;
@@ -223,7 +225,7 @@ export class ElementStack implements Cursor {
   private pushElement(element: Simple.Element) {
     this.element = element;
     this.elementStack.push(element);
-    LOGGER.debug(`-> element stack ${this.elementStack.toArray().map(e => e.tagName).join(', ')}`);
+    // LOGGER.debug(`-> element stack ${this.elementStack.toArray().map(e => e.tagName).join(', ')}`);
 
     this.nextSibling = null;
     this.nextSiblingStack.push(null);
@@ -261,11 +263,11 @@ export class ElementStack implements Cursor {
     this.expectOperations('setStaticAttributeNS').addStaticAttributeNS(this.expectConstructing('setStaticAttributeNS'), namespace, name, value);
   }
 
-  setDynamicAttribute(name: string, reference: PathReference<string>, isTrusting: boolean) {
+  setDynamicAttribute(name: string, reference: VersionedReference<string>, isTrusting: boolean) {
     this.expectOperations('setDynamicAttribute').addDynamicAttribute(this.expectConstructing('setDynamicAttribute'), name, reference, isTrusting);
   }
 
-  setDynamicAttributeNS(namespace: string, name: string, reference: PathReference<string>, isTrusting: boolean) {
+  setDynamicAttributeNS(namespace: string, name: string, reference: VersionedReference<string>, isTrusting: boolean) {
     this.expectOperations('setDynamicAttributeNS').addDynamicAttributeNS(this.expectConstructing('setDynamicAttributeNS'), namespace, name, reference, isTrusting);
   }
 

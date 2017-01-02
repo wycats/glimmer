@@ -329,10 +329,14 @@ export abstract class Environment {
   macros(): { blocks: Blocks, inlines: Inlines } {
     let macros = this._macros;
     if (!macros) {
-      this._macros = macros = populateBuiltins();
+      this._macros = macros = this.populateBuiltins();
     }
 
     return macros;
+  }
+
+  populateBuiltins(): { blocks: Blocks, inlines: Inlines } {
+    return populateBuiltins();
   }
 
   abstract hasHelper(helperName: Option<string>[], blockMeta: TemplateMeta): boolean;

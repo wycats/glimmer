@@ -29,14 +29,41 @@ export interface PublicVM {
   newDestroyable(d: Destroyable): void;
 }
 
+export class EvaluationStack {
+  private stack: Opaque[] = [];
+
+  get pos() {
+    return this.stack.length;
+  }
+
+  restore(bp: number): number {
+    this.stack.length = bp;
+    return this.pop<number>();
+  }
+
+  set(pos: number, value: Opaque) {
+    this.stack[pos] = value;
+  }
+
+  push(value: Opaque) {
+    this.stack.push(value);
+  }
+
+  pop<T>(): T {
+    return this.stack.pop() as T;
+  }
+}
+
 export default class VM implements PublicVM {
   private dynamicScopeStack = new Stack<DynamicScope>();
   private scopeStack = new Stack<Scope>();
+  private bp = 0;
   public updatingOpcodeStack = new Stack<LinkedList<UpdatingOpcode>>();
   public cacheGroups = new Stack<Option<UpdatingOpcode>>();
   public listBlockStack = new Stack<ListBlockOpcode>();
   public frame = new FrameStack();
   public constants: Constants;
+  public evalStack = new EvaluationStack();
 
   static initial(
     env: Environment,
@@ -69,6 +96,30 @@ export default class VM implements PublicVM {
       dynamicScope: this.dynamicScope(),
       frame: this.frame.capture()
     };
+  }
+
+  reserveLocals(size: number) {
+    let { evalStack: stack, bp } = this;
+
+    stack.push(bp);
+    this.bp = stack.pos;
+
+    for (let i=0; i<size; i++) {
+      stack.push(null);
+    }
+  }
+
+  releaseLocals() {
+    let { evalStack: stack, bp } = this;
+    this.bp = stack.restore(bp);
+  }
+
+  setLocal(position: number, value: Opaque) {
+    this.evalStack[this.bp + position] = value;
+  }
+
+  getLocal(position: number) {
+    return this.evalStack[this.bp + position];
   }
 
   goto(ip: number) {
@@ -259,7 +310,7 @@ export default class VM implements PublicVM {
   }
 
   getArgs(): Option<EvaluatedArgs> {
-    return this.frame.getArgs();
+    return this.evalStack.pop<Option<EvaluatedArgs>>();
   }
 
   /// EXECUTION
@@ -284,8 +335,8 @@ export default class VM implements PublicVM {
 
     while (frame.hasOpcodes()) {
       if (opcode = frame.nextStatement(this.env)) {
-        LOGGER.trace(opcode);
-        APPEND_OPCODES.evaluate(this, opcode);
+        // LOGGER.trace(opcode);
+        APPEND_OPCODES.evaluate(this, opcode, opcode.type);
       }
     }
 
@@ -299,7 +350,7 @@ export default class VM implements PublicVM {
   }
 
   evaluateOpcode(opcode: Opcode) {
-    APPEND_OPCODES.evaluate(this, opcode);
+    APPEND_OPCODES.evaluate(this, opcode, opcode.type);
   }
 
   // Make sure you have opcodes that push and pop a scope around this opcode
@@ -326,6 +377,7 @@ export default class VM implements PublicVM {
   }
 
   evaluateOperand(expr: CompiledExpression<any>) {
+    throw new Error('removing evaluateOperand');
     this.frame.setOperand(expr.evaluate(this));
   }
 

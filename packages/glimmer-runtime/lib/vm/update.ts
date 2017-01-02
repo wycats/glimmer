@@ -13,6 +13,7 @@ import {
   combine,
   Revision,
   UpdatableTag,
+  TagWrapper,
   combineSlice,
   CONSTANT_TAG,
   INITIAL
@@ -161,17 +162,17 @@ export abstract class BlockOpcode extends UpdatingOpcode implements DestroyableB
 export class TryOpcode extends BlockOpcode implements ExceptionHandler {
   public type = "try";
 
-  private _tag: UpdatableTag;
+  private _tag: TagWrapper<UpdatableTag>;
 
   protected bounds: UpdatableTracker;
 
   constructor(ops: Slice, state: VMState, bounds: UpdatableTracker, children: LinkedList<UpdatingOpcode>) {
     super(ops, state, bounds, children);
-    this.tag = this._tag = new UpdatableTag(CONSTANT_TAG);
+    this.tag = this._tag = UpdatableTag.create(CONSTANT_TAG);
   }
 
   didInitializeChildren() {
-    this._tag.update(combineSlice(this.children));
+    this._tag.inner.update(combineSlice(this.children));
   }
 
   evaluate(vm: UpdatingVM) {
@@ -295,12 +296,12 @@ export class ListBlockOpcode extends BlockOpcode {
   public artifacts: IterationArtifacts;
 
   private lastIterated: Revision = INITIAL;
-  private _tag: UpdatableTag;
+  private _tag: TagWrapper<UpdatableTag>;
 
   constructor(ops: Slice, state: VMState, bounds: Tracker, children: LinkedList<UpdatingOpcode>, artifacts: IterationArtifacts) {
     super(ops, state, bounds, children);
     this.artifacts = artifacts;
-    let _tag = this._tag = new UpdatableTag(CONSTANT_TAG);
+    let _tag = this._tag = UpdatableTag.create(CONSTANT_TAG);
     this.tag = combine([artifacts.tag, _tag]);
   }
 
@@ -308,7 +309,7 @@ export class ListBlockOpcode extends BlockOpcode {
     this.lastIterated = this.artifacts.tag.value();
 
     if (listDidChange) {
-      this._tag.update(combineSlice(this.children));
+      this._tag.inner.update(combineSlice(this.children));
     }
   }
 

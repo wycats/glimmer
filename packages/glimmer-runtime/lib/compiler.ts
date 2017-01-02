@@ -4,6 +4,10 @@ import { CompiledProgram } from './compiled/blocks';
 import { Maybe, Option } from 'glimmer-util';
 
 import {
+  EMPTY_ARRAY
+} from './utils';
+
+import {
   BaselineSyntax,
   Layout,
   InlineBlock,
@@ -17,8 +21,9 @@ import {
 } from './opcode-builder';
 
 import {
+  expr as compileExpr,
   compileArgs,
-  compileBaselineArgs
+  compileBlocks
 } from './syntax/functions';
 
 import {
@@ -115,9 +120,11 @@ class WrappedBuilder {
     let staticTag: Maybe<string>;
 
     if (dynamicTag) {
-      b.putValue(dynamicTag);
+      compileExpr(dynamicTag, b);
       b.test('simple');
       b.jumpUnless('BODY');
+      // MAJOR TODO: Stack allocate this
+      compileExpr(dynamicTag, b);
       b.openDynamicPrimitiveElement();
       b.didCreateElement();
       this.attrs['buffer'].forEach(statement => compileStatement(statement, b));
@@ -135,7 +142,7 @@ class WrappedBuilder {
     layout.statements.forEach(statement => compileStatement(statement, b));
 
     if (dynamicTag) {
-      b.putValue(dynamicTag);
+      compileExpr(dynamicTag, b);
       b.test('simple');
       b.jumpUnless('END');
       b.closeElement();
@@ -245,23 +252,40 @@ export class ComponentBuilder implements IComponentBuilder {
   }
 
   static(definition: StaticDefinition, args: BaselineSyntax.Args, _symbolTable: SymbolTable, shadow: InlineBlock) {
+    let [params, hash, _default, inverse] = args;
+
     this.builder.unit(b => {
-      b.putComponentDefinition(definition);
-      b.openComponent(compileBaselineArgs(args, b), shadow);
+      b.pushImmediate(definition);
+      let { positional } = compileArgs(params, hash, b);
+      let blocks = compileBlocks(_default, inverse, b);
+      b.pushReifiedArgs(positional, hash ? hash[0] : EMPTY_ARRAY, blocks.default, blocks.inverse);
+
+      b.openComponent(shadow);
       b.closeComponent();
     });
   }
 
   dynamic(definitionArgs: BaselineSyntax.Args, definition: DynamicDefinition, args: BaselineSyntax.Args, _symbolTable: SymbolTable, shadow: InlineBlock) {
     this.builder.unit(b => {
-      b.putArgs(compileArgs(definitionArgs[0], definitionArgs[1], b));
-      b.putValue(['function', definition]);
+      let [params, hash, _default, inverse] = args;
+
+      if (!definitionArgs || definitionArgs.length === 0) {
+        throw new Error("Dynamic syntax without an argument");
+      }
+
+      compileExpr(definitionArgs[0][0], b);
+      compileExpr(['function', definition], b);
       b.test('simple');
       b.enter('BEGIN', 'END');
       b.label('BEGIN');
       b.jumpUnless('END');
+      compileExpr(definitionArgs[0][0], b);
+      compileExpr(['function', definition], b);
       b.putDynamicComponentDefinition();
-      b.openComponent(compileBaselineArgs(args, b), shadow);
+      let { positional } = compileArgs(params, hash, b);
+      let blocks = compileBlocks(_default, inverse, b);
+      b.pushReifiedArgs(positional, hash ? hash[0] : EMPTY_ARRAY, blocks.default, blocks.inverse);
+      b.openComponent(shadow);
       b.closeComponent();
       b.label('END');
       b.exit();

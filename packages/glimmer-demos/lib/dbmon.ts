@@ -123,7 +123,7 @@ export function init() {
   serversRef = new UpdatableReference({ model });
   result = app.render(serversRef, output, new TestDynamicScope());
 
-  console.log(env['createdComponents'].length);
+  // console.log(env['createdComponents'].length);
   env.commit();
   console.timeEnd('initial render');
 }
@@ -230,7 +230,7 @@ function getData() {
   return data;
 }
 
-function generateData(oldData: any = {}) {
+export function generateData(oldData: any = {}) {
   let rawData = getData();
 
   let databases = (oldData && oldData.databases) || {};

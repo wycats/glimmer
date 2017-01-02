@@ -48,6 +48,8 @@ export class EntryPoint extends Template {
 }
 
 export class InlineBlock extends Template {
+  private block: Option<CompiledBlock> = null;
+
   splat(builder: OpcodeBuilder) {
     let table = builder.symbolTable;
 
@@ -69,12 +71,18 @@ export class InlineBlock extends Template {
   }
 
   compile(env: Environment): CompiledBlock {
-    let table = this.symbolTable;
-    let b = builder(env, table);
+    let block = this.block;
 
-    this.splat(b);
+    if (!block) {
+      let table = this.symbolTable;
+      let b = builder(env, table);
 
-    return new CompiledBlock(b.toSlice());
+      this.splat(b);
+
+      block = this.block = new CompiledBlock(b.toSlice());
+    }
+
+    return block;
   }
 }
 
@@ -130,7 +138,7 @@ export function scanBlock({ statements }: SerializedBlock, symbolTable: SymbolTa
 }
 
 import { PublicVM } from './vm';
-import { PathReference } from 'glimmer-reference';
+import { VersionedPathReference } from 'glimmer-reference';
 
 export namespace BaselineSyntax {
   import Core = WireFormat.Core;
@@ -160,7 +168,7 @@ export namespace BaselineSyntax {
   export type DynamicPartial = ['dynamic-partial', WireFormat.Expression];
   export const isDynamicPartial = WireFormat.is<DynamicPartial>('dynamic-partial');
 
-  export type FunctionExpressionCallback<T> = (VM: PublicVM, symbolTable: SymbolTable) => PathReference<T>;
+  export type FunctionExpressionCallback<T> = (VM: PublicVM, symbolTable: SymbolTable) => VersionedPathReference<T>;
   export type FunctionExpression = ['function', FunctionExpressionCallback<Opaque>];
   export const isFunctionExpression = WireFormat.is<FunctionExpression>('function');
 

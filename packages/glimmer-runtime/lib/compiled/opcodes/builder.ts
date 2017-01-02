@@ -3,17 +3,9 @@ import * as vm from './vm';
 
 import { Insertion } from '../../upsert';
 
-import {
-  CompiledGetBlock,
-  CompiledGetBlockBySymbol,
-  CompiledInPartialGetBlock
-} from '../../compiled/expressions/has-block';
-
 import { Option, Stack, Dict, Opaque, dict, expect } from 'glimmer-util';
-import { expr } from '../../syntax/functions';
 import { Constants, Slice } from '../../opcodes';
 import { CompiledArgs } from '../expressions/args';
-import { CompiledExpression } from '../expressions';
 import { ComponentDefinition } from '../../component/interfaces';
 import { PartialDefinition } from '../../partial';
 import Environment, { Program } from '../../environment';
@@ -24,12 +16,14 @@ import { BaselineSyntax, InlineBlock, Template } from '../../scanner';
 
 import {
   APPEND_OPCODES,
-  OpcodeName as Op,
+  Op as Op,
   AppendOpcode,
+  ConstantString,
   ConstantArray,
   ConstantOther,
   ConstantExpression,
-  ConstantBlock
+  ConstantBlock,
+  ConstantFunction
 } from '../../opcodes';
 
 function opcode(name: Op, op1?: number, op2?: number, op3?: number): AppendOpcode {
@@ -39,8 +33,6 @@ function opcode(name: Op, op1?: number, op2?: number, op3?: number): AppendOpcod
 export interface CompilesInto<E> {
   compile(builder: OpcodeBuilder): E;
 }
-
-export type RepresentsExpression = BaselineSyntax.AnyExpression | CompiledExpression<Opaque>;
 
 export type Represents<E> = CompilesInto<E> | E;
 
@@ -82,18 +74,26 @@ class Labels {
   }
 }
 
+// const HI = 0x80000000;
+// const HI_MASK = 0x7FFFFFFF;
+// const HI2 = 0x40000000;
+// const HI2_MASK = 0xbFFFFFFF;
+
 export abstract class BasicOpcodeBuilder implements SymbolLookup {
   private labelsStack = new Stack<Labels>();
   public constants: Constants;
   private start: number;
+  private locals = 0;
+  private _localsSize = 0;
 
   constructor(public symbolTable: SymbolTable, public env: Environment, public program: Program) {
     this.constants = env.constants;
     this.start = program.next;
+
+    this.push(null);
   }
 
   abstract compile<E>(expr: Represents<E>): E;
-  abstract compileExpression(expr: RepresentsExpression): CompiledExpression<Opaque>;
 
   private get pos() {
     return this.program.current;
@@ -107,6 +107,22 @@ export abstract class BasicOpcodeBuilder implements SymbolLookup {
     this.push(opcode(name, op1, op2, op3));
   }
 
+  getLocal(): number {
+    let locals = this.locals++;
+    if (this._localsSize < this.locals) {
+      this._localsSize = this.locals;
+    }
+    return locals;
+  }
+
+  releaseLocal() {
+    this.locals--;
+  }
+
+  get localsSize() {
+    return this._localsSize;
+  }
+
   push(op: Option<AppendOpcode>) {
     // console.log(`pushing ${op && op.type}`);
     if (op === null) {
@@ -117,6 +133,8 @@ export abstract class BasicOpcodeBuilder implements SymbolLookup {
   }
 
   toSlice(): Slice {
+    this.program.set(this.start, opcode(Op.ReserveLocals, this.localsSize));
+    this.opcode(Op.ReleaseLocals);
     return [this.start, this.program.current];
   }
 
@@ -160,8 +178,8 @@ export abstract class BasicOpcodeBuilder implements SymbolLookup {
     this.opcode(Op.PutDynamicComponent);
   }
 
-  openComponent(args: Represents<CompiledArgs>, shadow?: InlineBlock) {
-    this.opcode(Op.OpenComponent, this.args(args), shadow ? this.block(shadow) : 0);
+  openComponent(shadow?: InlineBlock) {
+    this.opcode(Op.OpenComponent, shadow ? this.block(shadow) : 0);
   }
 
   didCreateElement() {
@@ -195,12 +213,12 @@ export abstract class BasicOpcodeBuilder implements SymbolLookup {
     this.dynamicContent(new content.OptimizedTrustingAppendOpcode());
   }
 
-  guardedCautiousAppend(expression: RepresentsExpression) {
-    this.dynamicContent(new content.GuardedCautiousAppendOpcode(this.compileExpression(expression), this.symbolTable));
+  guardedCautiousAppend(expression: BaselineSyntax.AnyExpression) {
+    this.dynamicContent(new content.GuardedCautiousAppendOpcode(expression, this.symbolTable));
   }
 
-  guardedTrustingAppend(expression: RepresentsExpression) {
-    this.dynamicContent(new content.GuardedTrustingAppendOpcode(this.compileExpression(expression), this.symbolTable));
+  guardedTrustingAppend(expression: BaselineSyntax.AnyExpression) {
+    this.dynamicContent(new content.GuardedTrustingAppendOpcode(expression, this.symbolTable));
   }
 
   // dom
@@ -287,12 +305,55 @@ export abstract class BasicOpcodeBuilder implements SymbolLookup {
     this.labels.jump(this.pos, Op.NextIter, end);
   }
 
+  // expressions
+
+  pushSelf() {
+    this.opcode(Op.PushSelf);
+  }
+
+  pushSymbol(symbol: number) {
+    this.opcode(Op.PushSymbol, symbol);
+  }
+
+  getKey(key: string) {
+    this.opcode(Op.GetKey, this.string(key));
+  }
+
+  getBlock(name: string) {
+    let symbol = this.symbolTable.getSymbol('yields', name);
+    this.opcode(Op.GetBlock, symbol!);
+  }
+
+  hasBlock(name: string) {
+    let symbol = this.symbolTable.getSymbol('yields', name);
+    this.opcode(Op.HasBlock, symbol!);
+  }
+
+  hasBlockParams(name: string) {
+    let symbol = this.symbolTable.getSymbol('yields', name);
+    this.opcode(Op.HasBlockParams, symbol!);
+  }
+
+  concat(size: number) {
+    this.opcode(Op.Concat, size);
+  }
+
+  function(f: BaselineSyntax.FunctionExpressionCallback<Opaque>) {
+    this.opcode(Op.Function, this.func(f));
+  }
+
+  putLocal(pos: number) {
+    this.opcode(Op.PutLocal, pos);
+  }
+
+  pushLocal(pos: number) {
+    this.opcode(Op.PushLocal, pos);
+  }
+
   // vm
 
-  openBlock(_args: Represents<CompiledArgs>, _inner: CompiledGetBlock) {
-    let args = this.constants.expression(this.compile(_args));
-    let inner = this.constants.other(_inner);
-    this.opcode(Op.OpenBlock, inner, args);
+  openBlock(positional: number) {
+    this.opcode(Op.OpenBlock, positional);
   }
 
   closeBlock() {
@@ -305,10 +366,6 @@ export abstract class BasicOpcodeBuilder implements SymbolLookup {
 
   popRemoteElement() {
     this.opcode(Op.PopRemoteElement);
-  }
-
-  popElement() {
-    this.opcode(Op.PopElement);
   }
 
   label(name: string) {
@@ -335,14 +392,83 @@ export abstract class BasicOpcodeBuilder implements SymbolLookup {
     this.opcode(Op.Put, this.constants.NULL_REFERENCE);
   }
 
-  putValue(_expression: RepresentsExpression) {
-    let expr = this.constants.expression(this.compileExpression(_expression));
-    this.opcode(Op.EvaluatePut, expr);
+  putEvalledExpr() {
+    this.opcode(Op.PutEvalledExpr);
+  }
+
+  putEvalledArgs() {
+    this.opcode(Op.PutEvalledArgs);
+  }
+
+  pushReifiedArgs(positional: number, _names: string[], hasDefault = false, hasInverse = false) {
+    let names = this.names(_names);
+
+    let flag = 0;
+    if (hasDefault) flag |= 0b01;
+    if (hasInverse) flag |= 0b10;
+
+    this.opcode(Op.PushReifiedArgs, positional, names, flag);
+  }
+
+  pushImmediate(value: Opaque) {
+    this.opcode(Op.PushImmediate, this.other(value));
+  }
+
+  pushPrimitive(_primitive: string | number | null | undefined | boolean) {
+    let flag: 0 | 1 | 2 = 0;
+    let primitive: number;
+    switch (typeof _primitive) {
+      case 'number':
+        primitive = _primitive as number;
+        break;
+      case 'string':
+        primitive = this.string(_primitive as string);
+        flag = 1;
+        break;
+      case 'boolean':
+        primitive = (_primitive as any) | 0;
+        flag = 2;
+        break;
+      case 'object':
+        // assume null
+        primitive = 2;
+        flag = 2;
+        break;
+      case 'undefined':
+        primitive = 3;
+        flag = 2;
+        break;
+      default:
+        throw new Error('Invalid primitive passed to pushPrimitive');
+    }
+
+    this.opcode(Op.PushPrimitive, (flag << 30) | primitive);
+  }
+
+  helper(func: Function) {
+    this.opcode(Op.Helper, this.func(func));
   }
 
   putArgs(_args: Represents<CompiledArgs>) {
-    let args = this.constants.expression(this.compile(_args));
-    this.opcode(Op.PutArgs, args);
+    throw new Error('removing PutArgs');
+  }
+
+  pushBlocks(_default: Option<InlineBlock>, inverse: Option<InlineBlock>) {
+    let flag = 0;
+    let defaultBlock: ConstantBlock = 0;
+    let inverseBlock: ConstantBlock = 0;
+
+    if (_default) {
+      flag |= 0b01;
+      defaultBlock = this.block(_default);
+    }
+
+    if (inverse) {
+      flag |= 0b10;
+      inverseBlock = this.block(inverse);
+    }
+
+    this.opcode(Op.PushBlocks, defaultBlock, inverseBlock, flag);
   }
 
   bindDynamicScope(_names: string[]) {
@@ -409,6 +535,10 @@ export abstract class BasicOpcodeBuilder implements SymbolLookup {
     this.labels.jump(this.pos, Op.JumpUnless, target);
   }
 
+  protected string(_string: string): ConstantString {
+    return this.constants.string(_string);
+  }
+
   protected names(_names: string[]): ConstantArray {
     let names = _names.map(n => this.constants.string(n));
     return this.constants.array(names);
@@ -429,6 +559,10 @@ export abstract class BasicOpcodeBuilder implements SymbolLookup {
   protected block(block: InlineBlock): ConstantBlock {
     return this.constants.block(block);
   }
+
+  protected func(func: Function): ConstantFunction {
+    return this.constants.function(func);
+  }
 }
 
 function isCompilableExpression<E>(expr: Represents<E>): expr is CompilesInto<E> {
@@ -448,14 +582,6 @@ export default class OpcodeBuilder extends BasicOpcodeBuilder {
       return expr.compile(this);
     } else {
       return expr;
-    }
-  }
-
-  compileExpression(expression: RepresentsExpression): CompiledExpression<Opaque> {
-    if (expression instanceof CompiledExpression) {
-      return expression;
-    } else {
-      return expr(expression, this);
     }
   }
 
@@ -488,19 +614,19 @@ export default class OpcodeBuilder extends BasicOpcodeBuilder {
     }
   }
 
-  yield(args: Represents<CompiledArgs>, to: string) {
+  yield(positional: number, to: string) {
+    let table = this.symbolTable;
     let yields: Option<number>, partial: Option<number>;
-    let inner: CompiledGetBlock;
 
-    if (yields = this.symbolTable.getSymbol('yields', to)) {
-      inner = new CompiledGetBlockBySymbol(yields, to);
+    if (yields = table.getSymbol('yields', to)) {
+      this.opcode(Op.GetBlock, yields);
     } else if (partial = this.symbolTable.getPartialArgs()) {
-      inner = new CompiledInPartialGetBlock(partial, to);
+      this.opcode(Op.GetEvalBlock, partial, this.string(to));
     } else {
       throw new Error('[BUG] ${to} is not a valid block name.');
     }
 
-    this.openBlock(args, inner);
+    this.openBlock(positional);
     this.closeBlock();
   }
 

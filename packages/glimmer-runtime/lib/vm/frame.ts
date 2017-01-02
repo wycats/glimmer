@@ -1,6 +1,6 @@
 import { Scope, Environment, Opcode } from '../environment';
 import { Reference, PathReference, ReferenceIterator } from 'glimmer-reference';
-import { TRUST, Option, unwrap, expect } from 'glimmer-util';
+import { TRUST, Option, unwrap } from 'glimmer-util';
 import { InlineBlock } from '../scanner';
 import { EvaluatedArgs } from '../compiled/expressions/args';
 import { Slice } from '../opcodes';
@@ -14,34 +14,69 @@ export class CapturedFrame {
   ) {}
 }
 
+interface VolatileRegisters {
+  immediate: any;
+  callerScope: Option<Scope>;
+  blocks: Option<Blocks>;
+  iterator: Option<ReferenceIterator>;
+  key: Option<string>;
+  component: Component;
+  manager: Option<ComponentManager<Component>>;
+  shadow: Option<InlineBlock>;
+}
+
+interface SavedRegisters {
+  operand: Option<PathReference<any>>;
+  args: Option<EvaluatedArgs>;
+  condition: Option<Reference<boolean>>;
+}
+
+function volatileRegisters(component: Component, manager: Option<ComponentManager<Component>>, shadow: Option<InlineBlock>): VolatileRegisters {
+  return {
+    immediate: null,
+    callerScope: null,
+    blocks: null,
+    iterator: null,
+    key: null,
+    component,
+    manager,
+    shadow
+  };
+}
+
+function savedRegisters(): SavedRegisters {
+  return {
+    operand: null,
+    args: null,
+    condition: null
+  };
+}
+
 class Frame {
   ip: number;
-  operand: Option<PathReference<any>> = null;
-  immediate: any = null;
-  args: Option<EvaluatedArgs> = null;
-  callerScope: Option<Scope> = null;
-  blocks: Option<Blocks> = null;
-  condition: Option<Reference<boolean>> = null;
-  iterator: Option<ReferenceIterator> = null;
-  key: Option<string> = null;
+  volatile: VolatileRegisters;
+  saved: SavedRegisters;
 
   constructor(
     public ops: Slice,
-    public component: Component = null,
-    public manager: Option<ComponentManager<Component>> = null,
-    public shadow: Option<InlineBlock> = null
+    component: Component = null,
+    manager: Option<ComponentManager<Component>> = null,
+    shadow: Option<InlineBlock> = null
   ) {
     this.ip = ops[0];
+    this.volatile = volatileRegisters(component, manager, shadow);
+    this.saved = savedRegisters();
   }
 
   capture(): CapturedFrame {
-    return new CapturedFrame(this.operand, this.args, this.condition);
+    let { operand, args, condition } = this.saved;
+    return new CapturedFrame(operand, args, condition);
   }
 
   restore(frame: CapturedFrame) {
-    this.operand = frame['operand'];
-    this.args = frame['args'];
-    this.condition = frame['condition'];
+    this.saved.operand = frame['operand'];
+    this.saved.args = frame['args'];
+    this.saved.condition = frame['condition'];
   }
 }
 
@@ -52,26 +87,27 @@ export interface Blocks {
 
 export class FrameStack {
   private frames: Frame[] = [];
-  private frame: Option<number> = null;
+  private frame = 0;
 
   private get currentFrame(): Frame {
-    return this.frames[unwrap(this.frame)];
+    // console.log(this.frames[this.frame]);
+    return this.frames[this.frame - 1];
   }
 
   push(ops: Slice, component: Component = null, manager: Option<ComponentManager<Component>> = null, shadow: Option<InlineBlock> = null) {
-    let frame = (this.frame === null) ? (this.frame = 0) : ++this.frame;
+    let frame = ++this.frame;
 
-    if (this.frames.length <= frame) {
+    if (this.frames.length < frame) {
       this.frames.push(null as TRUST<Frame, 'the null is replaced on the next line'>);
     }
 
-    this.frames[frame] = new Frame(ops, component, manager, shadow);
+    this.frames[frame - 1] = new Frame(ops, component, manager, shadow);
   }
 
   pop() {
     let { frames, frame } = this;
-    frames[expect(frame, 'only pop after pushing')] = null as TRUST<Frame, "this frame won't be accessed anymore">;
-    this.frame = frame === 0 ? null : frame - 1;
+    frames[--frame] = null as TRUST<Frame, "this frame won't be accessed anymore">;
+    this.frame--;
   }
 
   capture(): CapturedFrame {
@@ -95,82 +131,82 @@ export class FrameStack {
   }
 
   getOperand<T>(): PathReference<T> {
-    return unwrap(this.currentFrame.operand);
+    return unwrap(this.currentFrame.saved.operand);
   }
 
   setOperand<T>(operand: PathReference<T>): PathReference<T> {
-    return this.currentFrame.operand = operand;
+    return this.currentFrame.saved.operand = operand;
   }
 
   getImmediate<T>(): T {
-    return this.currentFrame.immediate;
+    return this.currentFrame.volatile.immediate;
   }
 
   setImmediate<T>(value: T): T {
-    return this.currentFrame.immediate = value;
+    return this.currentFrame.volatile.immediate = value;
   }
 
   // FIXME: These options are required in practice by the existing code, but
   // figure out why.
 
   getArgs(): Option<EvaluatedArgs> {
-    return this.currentFrame.args;
+    return this.currentFrame.saved.args;
   }
 
   setArgs(args: EvaluatedArgs): EvaluatedArgs {
-    return this.currentFrame.args = args;
+    return this.currentFrame.saved.args = args;
   }
 
   getCondition(): Reference<boolean> {
-    return unwrap(this.currentFrame.condition);
+    return unwrap(this.currentFrame.saved.condition);
   }
 
   setCondition(condition: Reference<boolean>): Reference<boolean> {
-    return this.currentFrame.condition = condition;
+    return this.currentFrame.saved.condition = condition;
   }
 
   getIterator(): ReferenceIterator {
-    return unwrap(this.currentFrame.iterator);
+    return unwrap(this.currentFrame.volatile.iterator);
   }
 
   setIterator(iterator: ReferenceIterator): ReferenceIterator {
-    return this.currentFrame.iterator = iterator;
+    return this.currentFrame.volatile.iterator = iterator;
   }
 
   getKey(): Option<string> {
-    return this.currentFrame.key;
+    return this.currentFrame.volatile.key;
   }
 
   setKey(key: string): string {
-    return this.currentFrame.key = key;
+    return this.currentFrame.volatile.key = key;
   }
 
   getBlocks(): Blocks {
-    return unwrap(this.currentFrame.blocks);
+    return unwrap(this.currentFrame.volatile.blocks);
   }
 
   setBlocks(blocks: Blocks): Blocks {
-    return this.currentFrame.blocks = blocks;
+    return this.currentFrame.volatile.blocks = blocks;
   }
 
   getCallerScope(): Scope {
-    return unwrap(this.currentFrame.callerScope);
+    return unwrap(this.currentFrame.volatile.callerScope);
   }
 
   setCallerScope(callerScope: Scope): Scope {
-    return this.currentFrame.callerScope = callerScope;
+    return this.currentFrame.volatile.callerScope = callerScope;
   }
 
   getComponent(): Component {
-    return unwrap(this.currentFrame.component);
+    return unwrap(this.currentFrame.volatile.component);
   }
 
   getManager(): ComponentManager<Component> {
-    return unwrap(this.currentFrame.manager);
+    return unwrap(this.currentFrame.volatile.manager);
   }
 
   getShadow(): Option<InlineBlock> {
-    return this.currentFrame.shadow;
+    return this.currentFrame.volatile.shadow;
   }
 
   goto(ip: number) {
@@ -178,11 +214,12 @@ export class FrameStack {
   }
 
   hasOpcodes(): boolean {
-    return this.frame !== null;
+    return this.frame !== 0;
   }
 
   nextStatement(env: Environment): Option<Opcode> {
-    let ip = this.frames[unwrap(this.frame)].ip;
+    let frame = this.frames[this.frame - 1];
+    let ip = frame.ip;
     let ops = this.getOps();
 
     if (ip <= ops[1]) {
