@@ -53,20 +53,9 @@ export class InlineBlock extends Template {
   splat(builder: OpcodeBuilder) {
     let table = builder.symbolTable;
 
-    let locals = table.getSymbols().locals;
-
-    if (locals) {
-      builder.pushChildScope();
-      builder.bindPositionalArgsForLocals(locals);
-    }
-
     for (let statement of this.statements) {
       let refined = SPECIALIZE.specialize(statement, table);
       STATEMENTS.compile(refined, builder);
-    }
-
-    if (locals) {
-      builder.popScope();
     }
   }
 

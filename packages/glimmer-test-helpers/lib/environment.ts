@@ -846,8 +846,7 @@ export class TestEnvironment extends Environment {
     return rawCompileLayout(template, { env: this });
   }
 
-  iterableFor(ref: Reference<Opaque>, args: EvaluatedArgs): OpaqueIterable {
-    let keyPath = args.named.get("key").value() as FIXME<any, "User value to lookup key">;
+  iterableFor(ref: Reference<Opaque>, keyPath: string): OpaqueIterable {
     let keyFor: KeyFor<Opaque>;
 
     if (!keyPath) {
@@ -1081,11 +1080,11 @@ const { defaultBlock, inverseBlock, params, hash } = BaselineSyntax.NestedBlock;
 
 function populateBlocks(blocks: BlockMacros, inlines: InlineMacros): { blocks: BlockMacros, inlines: InlineMacros } {
   blocks.add('identity', (sexp: NestedBlockSyntax, builder: OpcodeBuilderDSL) => {
-    builder.evaluate(sexp[4]);
+    builder.evaluate(sexp[4], null);
   });
 
   blocks.add('render-inverse', (sexp: NestedBlockSyntax, builder: OpcodeBuilderDSL) => {
-    builder.evaluate(sexp[5]);
+    builder.evaluate(sexp[5], null);
   });
 
   blocks.add('-with-dynamic-vars', (sexp, builder) => {

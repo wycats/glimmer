@@ -21,9 +21,14 @@ APPEND_OPCODES.add(Op.Self, (vm) => {
   vm.evalStack.push(vm.getSelf());
 });
 
-APPEND_OPCODES.add(Op.Variable, (vm, { op1: symbol }) => {
+APPEND_OPCODES.add(Op.GetVariable, (vm, { op1: symbol }) => {
   let expr = vm.referenceForSymbol(symbol);
   vm.evalStack.push(expr);
+});
+
+APPEND_OPCODES.add(Op.SetVariable, (vm, { op1: symbol }) => {
+  let expr = vm.evalStack.pop<VersionedPathReference<Opaque>>();
+  vm.scope().bindSymbol(symbol, expr);
 });
 
 APPEND_OPCODES.add(Op.GetProperty, (vm, { op1: _key }) => {

@@ -3,7 +3,7 @@ import { Tag, VersionedPathReference } from 'glimmer-reference';
 import { VM, UpdatingVM } from './vm';
 import { NULL_REFERENCE, UNDEFINED_REFERENCE } from './references';
 import { InlineBlock } from './scanner';
-import { Opcode } from './environment';
+import { Opcode, Environment } from './environment';
 
 export type Slice = [number, number];
 
@@ -72,6 +72,18 @@ export const enum Op {
 
   /**
    * Operation:
+   *   Bind the variable represented by a symbol from
+   *   the value at the top of the stack.
+   * Format:
+   *   (SetVariable symbol:u32)
+   * Operand Stack:
+   *   ..., VersionedPathReference →
+   *   ...
+   */
+  SetVariable,
+
+  /**
+   * Operation:
    *   Push the contents of the variable represented by
    *   a symbol (a positional or named argument) onto
    *   the stack.
@@ -81,7 +93,7 @@ export const enum Op {
    *   ... →
    *   ..., VersionedPathReference
    */
-  Variable,
+  GetVariable,
 
   /**
    * Operation:
@@ -209,6 +221,15 @@ export const enum Op {
    */
   GetLocal,
 
+  /**
+   * Operation: Pop the stack and throw away the value.
+   * Format:
+   *   (Pop)
+   * Operand Stack:
+   *   ..., Opaque →
+   *   ...
+   */
+  Pop,
 
   /// EVAL
 
@@ -546,7 +567,7 @@ export const enum Op {
    * Operation: Exit the current list.
    *
    * Format:
-   *   (ExitList test:#function)
+   *   (ExitList)
    * Operand Stack:
    *   ... →
    *   ...
@@ -561,8 +582,8 @@ export const enum Op {
    * Format:
    *   (PutIterator)
    * Operand Stack:
-   *   ..., string, VersionedPathReference →
-   *   ..., ReferenceIterator, PresenceReference
+   *   ..., key:string, list:VersionedPathReference →
+   *   ..., iterator:ReferenceIterator, present:PresenceReference
    */
   PutIterator,
 
@@ -649,11 +670,35 @@ export const enum Op {
   Size
 }
 
+export function debugSlice(env: Environment, slice: Slice) {
+  let { program, constants } = env;
+
+  for (let i=slice[0]; i<=slice[1]; i+=4) {
+    let { type, op1, op2, op3 } = program.opcode(i);
+    let [name, params] = debug(constants, type, op1, op2, op3);
+    console.log(`${i}. ${logOpcode(name, params)}`)
+  }
+}
+
+function logOpcode(type: string, params: Option<Object>): string {
+  let out = type;
+
+  if (params) {
+    let args = Object.keys(params).map(p => `${p}=${JSON.stringify(params[p])}`).join(' ');
+    out += ` ${args}`;
+  }
+  return `(${out})`;
+}
+
+
+window['debugSlice'] = debugSlice;
+
 function debug(c: Constants, op: Op, op1: number, op2: number, op3: number): any[] {
   switch (op) {
     case Op.Helper: return ['Helper', { helper: c.getFunction(op1) }];
     case Op.Self: return ['Self'];
-    case Op.Variable: return ['Variable', { symbol: op1 }];
+    case Op.GetVariable: return ['GetVariable', { symbol: op1 }];
+    case Op.SetVariable: return ['SetVariable', { symbol: op1 }];
     case Op.PushEvalNames: return ['PushEvalNames'];
     case Op.GetEvalName: return ['GetEvalName'];
     case Op.GetEvalBlock: return ['GetEvalBlock'];
@@ -669,6 +714,7 @@ function debug(c: Constants, op: Op, op1: number, op2: number, op3: number): any
     case Op.PutEvalledArgs: return ['PutEvalledArgs'];
     case Op.PushReifiedArgs: return ['PushReifiedArgs', { positional: op1, names: c.getArray(op2).map(n => c.getString(n)), flag: op3 }];
     case Op.Primitive: return ['Primitive', { primitive: op1 }];
+    case Op.Pop: return ['Pop'];
 
     /// STATEMENTS
     case Op.ReserveLocals: return ['ReserveLocals', { count: op1 }];
@@ -685,12 +731,12 @@ function debug(c: Constants, op: Op, op1: number, op2: number, op3: number): any
     case Op.BindPartialArgs: return ['BindPartialArgs'];
     case Op.BindCallerScope: return ['BindCallerScope'];
     case Op.BindDynamicScope: return ['BindDynamicScope'];
-    case Op.Enter: return ['Enter'];
+    case Op.Enter: return ['Enter', { start: op1, end: op2 }];
     case Op.Exit: return ['Exit'];
     case Op.Evaluate: return ['Evaluate'];
-    case Op.Jump: return ['Jump'];
-    case Op.JumpIf: return ['JumpIf'];
-    case Op.JumpUnless: return ['JumpUnless'];
+    case Op.Jump: return ['Jump', { to: op1 }];
+    case Op.JumpIf: return ['JumpIf', { to: op1 }];
+    case Op.JumpUnless: return ['JumpUnless', { to: op1 }];
     case Op.ToBoolean: return ['ToBoolean'];
     case Op.InvokeBlock: return ['InvokeBlock'];
     case Op.DoneBlock: return ['DoneBlock'];
@@ -716,10 +762,10 @@ function debug(c: Constants, op: Op, op1: number, op2: number, op3: number): any
     case Op.DynamicAttrNS: return ['DynamicAttrNS', { name: c.getString(op1), ns: c.getString(op2), trusting: !!op2 }];
     case Op.DynamicAttr: return ['DynamicAttr', { name: c.getString(op1), trusting: !!op2 }];
     case Op.PutIterator: return ['PutIterator'];
-    case Op.EnterList: return ['EnterList'];
+    case Op.EnterList: return ['EnterList', { start: op1, end: op2 }];
     case Op.ExitList: return ['ExitList'];
-    case Op.Iterate: return ['Iterate'];
-    case Op.StartIterate: return ['StartIterate'];
+    case Op.Iterate: return ['Iterate', { breaks: op1, start: op2, end: op3 }];
+    case Op.StartIterate: return ['StartIterate', { start: op1, end: op2 }];
     case Op.PutDynamicPartial: return ['PutDynamicPartial'];
     case Op.PutPartial: return ['PutPartial'];
     case Op.EvaluatePartial: return ['EvaluatePartial'];
@@ -858,9 +904,13 @@ export class AppendOpcodes {
 
   evaluate(vm: VM, opcode: Opcode, type: number) {
     let func = this.evaluateOpcode[type];
-    console.log(...debug(vm.constants, type, opcode.op1, opcode.op2, opcode.op3));
+    let [name, params] = debug(vm.constants, opcode.type, opcode.op1, opcode.op2, opcode.op3);
+    console.log(`${vm.frame['currentFrame']['ip'] - 4}. ${logOpcode(name, params)}`)
+
+    // console.log(...debug(vm.constants, type, opcode.op1, opcode.op2, opcode.op3));
     func(vm, opcode);
-    console.log('%c -> eval stack', 'color: red', vm.evalStack.stack.length ? vm.evalStack.stack.slice() : 'EMPTY');
+    console.log('%c -> eval stack', 'color: red', vm.evalStack['stack'].length ? vm.evalStack['stack'].slice() : 'EMPTY');
+    console.log('%c -> scope', 'color: green', vm.scope()['slots'].map(s => s && s['value'] ? s['value']() : s));
   }
 }
 

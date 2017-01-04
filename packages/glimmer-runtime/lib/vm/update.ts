@@ -3,7 +3,6 @@ import { DestroyableBounds, clear, move as moveBounds } from '../bounds';
 import { ElementStack, Tracker, UpdatableTracker } from '../builder';
 import { LOGGER, Option, Opaque, Stack, LinkedList, Dict, dict, expect } from 'glimmer-util';
 import {
-  ConstReference,
   PathReference,
   IterationArtifacts,
   IteratorSynchronizer,
@@ -18,13 +17,12 @@ import {
   CONSTANT_TAG,
   INITIAL
 } from 'glimmer-reference';
-import { EvaluatedArgs } from '../compiled/expressions/args';
 import { Constants, OpcodeJSON, UpdatingOpcode, UpdatingOpSeq, Slice } from '../opcodes';
 import { DOMChanges } from '../dom/helper';
 import * as Simple from '../dom/interfaces';
-import { CapturedFrame } from './frame';
 
-import VM from './append';
+
+import VM, { EvaluationStack } from './append';
 
 export default class UpdatingVM {
   public env: Environment;
@@ -93,29 +91,32 @@ export interface VMState {
   env: Environment;
   scope: Scope;
   dynamicScope: DynamicScope;
-  frame: CapturedFrame;
+  stack: EvaluationStack;
+  bp: number;
 }
 
 export abstract class BlockOpcode extends UpdatingOpcode implements DestroyableBounds {
   public type = "block";
   public next = null;
   public prev = null;
+  public children: LinkedList<UpdatingOpcode>;
 
   protected env: Environment;
   protected scope: Scope;
   protected dynamicScope: DynamicScope;
-  protected frame: CapturedFrame;
-  protected children: LinkedList<UpdatingOpcode>;
+  protected stack: EvaluationStack;
+  protected bp: number;
   protected bounds: DestroyableBounds;
 
   constructor(public ops: Slice, state: VMState, bounds: DestroyableBounds, children: LinkedList<UpdatingOpcode>) {
     super();
-    let { env, scope, dynamicScope, frame } = state;
+    let { env, scope, dynamicScope, stack, bp } = state;
     this.children = children;
     this.env = env;
     this.scope = scope;
     this.dynamicScope = dynamicScope;
-    this.frame = frame;
+    this.stack = stack;
+    this.bp = bp;
     this.bounds = bounds;
   }
 
@@ -180,7 +181,7 @@ export class TryOpcode extends BlockOpcode implements ExceptionHandler {
   }
 
   handleException() {
-    let { env, scope, ops, dynamicScope, frame } = this;
+    let { env, scope, ops, dynamicScope, stack, bp } = this;
 
     let elementStack = ElementStack.resume(
       this.env,
@@ -189,7 +190,7 @@ export class TryOpcode extends BlockOpcode implements ExceptionHandler {
     );
 
     let vm = new VM(env, scope, dynamicScope, elementStack);
-    let result = vm.resume(ops, frame);
+    let result = vm.resume(ops, stack.snapshot(), bp);
 
     this.children = result.opcodes();
     this.didInitializeChildren();
@@ -235,22 +236,12 @@ class ListRevalidationDelegate implements IteratorSynchronizerDelegate {
     let tryOpcode: Option<TryOpcode> = null;
 
     vm.execute(opcode.ops, vm => {
-      vm.frame.setArgs(EvaluatedArgs.positional([item, memo]));
-      vm.frame.setOperand(item);
-      vm.frame.setCondition(new ConstReference(true));
-      vm.frame.setKey(key);
-
-      let state = vm.capture();
-      let tracker = vm.stack().pushUpdatableBlock();
-
-      tryOpcode = new TryOpcode(opcode.ops, state, tracker, vm.updating());
+      map[key] = tryOpcode = vm.iterate(opcode.ops, memo, item, vm.updating());
     });
 
     tryOpcode!.didInitializeChildren();
 
     updating.insertBefore(tryOpcode!, reference);
-
-    map[key] = tryOpcode!;
 
     this.didInsert = true;
   }

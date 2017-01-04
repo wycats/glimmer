@@ -1,5 +1,4 @@
 import { OpcodeJSON, UpdatingOpcode } from '../../opcodes';
-import { CompiledExpression } from '../expressions';
 import { UpdatingVM } from '../../vm';
 import { Reference, ConstReference, VersionedPathReference } from 'glimmer-reference';
 import { Option, Opaque, initializeGuid } from 'glimmer-util';
@@ -7,7 +6,6 @@ import { CONSTANT_TAG, ReferenceCache, Revision, Tag, isConst, isModified } from
 import Environment from '../../environment';
 import { APPEND_OPCODES, Op as Op } from '../../opcodes';
 import {
-  CompiledArgs,
   EvaluatedArgs,
   EvaluatedNamedArgs,
   EvaluatedPositionalArgs,
@@ -47,19 +45,6 @@ APPEND_OPCODES.add(Op.PopScope, vm => vm.popScope());
 APPEND_OPCODES.add(Op.PushDynamicScope, vm => vm.pushDynamicScope());
 
 APPEND_OPCODES.add(Op.PopDynamicScope, vm => vm.popDynamicScope());
-
-APPEND_OPCODES.add(Op.Put, (vm, { op1: reference }) => {
-  vm.frame.setOperand(vm.constants.getReference(reference));
-});
-
-APPEND_OPCODES.add(Op.EvaluatePut, (vm, { op1: expression }) => {
-  let expr = vm.constants.getExpression<CompiledExpression<Opaque>>(expression);
-  vm.evaluateOperand(expr);
-});
-
-APPEND_OPCODES.add(Op.PutArgs, (vm, { op1: args }) => {
-  vm.evaluateArgs(vm.constants.getExpression<CompiledArgs>(args));
-});
 
 APPEND_OPCODES.add(Op.PushReifiedArgs, (vm, { op1: positional, op2: _names, op3: blockFlag }) => {
   let stack = vm.evalStack;
@@ -123,6 +108,8 @@ APPEND_OPCODES.add(Op.Primitive, (vm, { op1: primitive }) => {
   }
 });
 
+APPEND_OPCODES.add(Op.Pop, vm => vm.evalStack.pop());
+
 APPEND_OPCODES.add(Op.BindPositionalArgs, (vm, { op1: _symbols }) => {
   let symbols = vm.constants.getArray(_symbols);
   vm.bindPositionalArgs(symbols);
@@ -151,7 +138,7 @@ APPEND_OPCODES.add(Op.BindDynamicScope, (vm, { op1: _names }) => {
   vm.bindDynamicScope(names);
 });
 
-APPEND_OPCODES.add(Op.Enter, (vm, { op1: slice }) => vm.enter(slice));
+APPEND_OPCODES.add(Op.Enter, (vm, { op1, op2 }) => vm.enter(op1, op2));
 
 APPEND_OPCODES.add(Op.Exit, (vm) => vm.exit());
 
@@ -164,7 +151,7 @@ APPEND_OPCODES.add(Op.Evaluate, (vm, { op1: _block }) => {
 APPEND_OPCODES.add(Op.Jump, (vm, { op1: target }) => vm.goto(target));
 
 APPEND_OPCODES.add(Op.JumpIf, (vm, { op1: target }) => {
-  let reference = vm.frame.getCondition();
+  let reference = vm.evalStack.pop<VersionedPathReference<Opaque>>();
 
   if (isConst(reference)) {
     if (reference.value()) {
@@ -182,7 +169,7 @@ APPEND_OPCODES.add(Op.JumpIf, (vm, { op1: target }) => {
 });
 
 APPEND_OPCODES.add(Op.JumpUnless, (vm, { op1: target }) => {
-  let reference = vm.frame.getCondition();
+  let reference = vm.evalStack.pop<VersionedPathReference<Opaque>>();
 
   if (isConst(reference)) {
     if (!reference.value()) {
@@ -214,9 +201,10 @@ export const EnvironmentTest: TestFunction = function(ref: Reference<Opaque>, en
 };
 
 APPEND_OPCODES.add(Op.ToBoolean, (vm, { op1: _func }) => {
-  let operand = vm.evalStack.pop();
+  let stack = vm.evalStack;
+  let operand = stack.pop();
   let func = vm.constants.getFunction(_func);
-  vm.frame.setCondition(func(operand, vm.env));
+  stack.push(func(operand, vm.env));
 });
 
 export class Assert extends UpdatingOpcode {

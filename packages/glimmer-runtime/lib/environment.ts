@@ -278,7 +278,7 @@ export abstract class Environment {
     return new ConditionalReference(reference);
   }
 
-  abstract iterableFor(reference: Reference<Opaque>, args: EvaluatedArgs): OpaqueIterable;
+  abstract iterableFor(reference: Reference<Opaque>, key: string): OpaqueIterable;
   abstract protocolForURL(s: string): string;
 
   getAppendOperations(): DOMTreeConstruction { return this.appendOperations; }
