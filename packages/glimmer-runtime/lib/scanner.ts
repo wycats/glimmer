@@ -73,6 +73,10 @@ export class InlineBlock extends Template {
 
     return block;
   }
+
+  toJSON() {
+    return { GlimmerDebug: '<block>' };
+  }
 }
 
 export class PartialBlock extends Template {

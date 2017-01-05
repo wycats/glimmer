@@ -251,16 +251,8 @@ export default class VM implements PublicVM {
     return expect(this.dynamicScopeStack.current, 'expected dynamic scope on the dynamic scope stack');
   }
 
-  pushFrame(
-    block: CompiledBlock,
-    args?: Option<EvaluatedArgs>,
-    callerScope?: Scope
-  ) {
+  pushFrame(block: CompiledBlock) {
     this.frame.push(block.slice);
-
-    if (args) this.frame.setArgs(args);
-    if (args && args.blocks) this.frame.setBlocks(args.blocks);
-    if (callerScope) this.frame.setCallerScope(callerScope);
   }
 
   pushComponentFrame(
@@ -373,9 +365,9 @@ export default class VM implements PublicVM {
 
   // Make sure you have opcodes that push and pop a scope around this opcode
   // if you need to change the scope.
-  invokeBlock(block: InlineBlock, args: Option<EvaluatedArgs>) {
+  invokeBlock(block: InlineBlock) {
     let compiled = block.compile(this.env);
-    this.pushFrame(compiled, args);
+    this.pushFrame(compiled);
   }
 
   invokePartial(block: PartialBlock) {
