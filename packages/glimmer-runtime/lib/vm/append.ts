@@ -68,6 +68,10 @@ export class EvaluationStack {
   fromTop<T>(pos: number): T {
     return this.stack[this.stack.length - 1 - pos] as T;
   }
+
+  slice<T extends Opaque[]>(count: number): T {
+    return this.stack.slice(this.stack.length - 1 - count) as T;
+  }
 }
 
 export default class VM implements PublicVM {
@@ -135,8 +139,8 @@ export default class VM implements PublicVM {
     this.evalStack.set(this.bp + position, value);
   }
 
-  getLocal(position: number) {
-    return this.evalStack.get(this.bp + position);
+  getLocal<T>(position: number): T {
+    return this.evalStack.get(this.bp + position) as T;
   }
 
   goto(ip: number) {
@@ -292,8 +296,9 @@ export default class VM implements PublicVM {
     return child;
   }
 
-  pushRootScope(self: PathReference<any>, size: number): Scope {
-    let scope = Scope.root(self, size);
+  pushRootScope(size: number, bindCaller: boolean): Scope {
+    let scope = Scope.sized(size);
+    if (bindCaller) scope.bindCallerScope(this.scope());
     this.scopeStack.push(scope);
     return scope;
   }
