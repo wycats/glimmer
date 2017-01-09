@@ -219,6 +219,10 @@ export abstract class BasicOpcodeBuilder implements SymbolLookup {
     this.opcode(Op.PushDynamicComponent);
   }
 
+  getComponentLayout(state: number ) {
+    this.opcode(Op.GetComponentLayout, state);
+  }
+
   openComponent(shadow?: InlineBlock) {
     this.opcode(Op.OpenComponent, shadow ? this.block(shadow) : 0);
   }
@@ -488,6 +492,26 @@ export abstract class BasicOpcodeBuilder implements SymbolLookup {
     this.labels.label(name, this.nextPos);
   }
 
+  bindSelf() {
+    this.opcode(Op.BindSelf);
+  }
+
+  bindVirtualBlock(layout: number, block: number) {
+    this.opcode(Op.BindVirtualBlock, layout, block);
+  }
+
+  bindVirtualNamed(layout: number, name: string) {
+    this.opcode(Op.BindVirtualNamed, layout, this.string(name));
+  }
+
+  pushRootScope(symbols: number, bindCallerScope: boolean) {
+    this.opcode(Op.RootScope, symbols, <any>bindCallerScope|0);
+  }
+
+  pushVirtualRootScope(bindCallerScope: boolean) {
+    this.opcode(Op.VirtualRootScope, <any>bindCallerScope|0);
+  }
+
   pushChildScope() {
     this.opcode(Op.PushChildScope);
   }
@@ -620,9 +644,13 @@ export abstract class BasicOpcodeBuilder implements SymbolLookup {
     this.opcode(Op.Exit);
   }
 
-  evaluate(_block: InlineBlock, args: Option<AppendOpcode[]>): void;
-  evaluate(_block: InlineBlock, args: number): void;
-  evaluate(_block: InlineBlock, args: any): void {
+  invokeVirtual(): void {
+    this.opcode(Op.InvokeVirtual);
+  }
+
+  invokeStatic(_block: InlineBlock, args: Option<AppendOpcode[]>): void;
+  invokeStatic(_block: InlineBlock, args: number): void;
+  invokeStatic(_block: InlineBlock, args: any): void {
     let paramSize = _block.symbolTable.getSymbolSize('local');
     let argSize: number;
     let onStack: boolean;
@@ -646,7 +674,7 @@ export abstract class BasicOpcodeBuilder implements SymbolLookup {
     }
 
     let block = this.constants.block(_block);
-    this.opcode(Op.Evaluate, block);
+    this.opcode(Op.InvokeStatic, block);
 
     if (argSize) {
       this.popScope();
