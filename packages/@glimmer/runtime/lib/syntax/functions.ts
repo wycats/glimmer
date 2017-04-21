@@ -509,7 +509,7 @@ export class Blocks {
 
     if (index === undefined) {
       let func = this.missing;
-      let handled = func(name, params, hash, template, inverse, builder);
+      func(name, params, hash, template, inverse, builder);
     } else {
       let func = this.funcs[index];
       func(params, hash, template, inverse, builder);
