@@ -1,35 +1,28 @@
-// This unstable feature is currently used for the `wasm_bindgen` macro which
-// allows us to define Rust code and have TypeScript automatically generated
-// for consumption elsewhere.
-#![feature(proc_macro, wasm_custom_section, wasm_import_module)]
+#![feature(proc_macro, wasm_custom_section, wasm_import_module, extern_prelude)]
+#![feature(crate_visibility_modifier)]
+#![feature(try_trait)]
+#![feature(in_band_lifetimes)]
+#![allow(unused)]
 
+extern crate serde_json;
 extern crate wasm_bindgen;
 
 use wasm_bindgen::prelude::*;
 
-#[macro_use]
-mod debug;
-#[macro_use]
-mod util;
-
-mod track;
-mod my_ref_cell;
-mod gbox;
-mod component;
-
-pub mod stack;
-pub mod vm;
-pub mod opcode;
 pub mod ffi;
-pub mod heap;
-pub mod instructions;
+pub mod hir;
+pub mod opcode_compiler;
+pub mod parse;
+pub mod program;
+pub mod template;
+pub mod test_support;
+pub mod vm;
+
+pub use program::VMHandle;
+pub use template::parse_template;
+pub use vm::VM;
 
 #[wasm_bindgen]
-pub fn num_allocated() -> usize {
-    track::total()
-}
-
-fn to_u32(a: i32) -> u32 {
-    debug_assert!(a >= 0);
-    a as u32
+pub fn num_allocated() -> u32 {
+    0
 }

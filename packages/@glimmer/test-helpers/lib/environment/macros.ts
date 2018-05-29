@@ -1,31 +1,38 @@
-
-import { Macros } from "@glimmer/opcode-compiler";
-import { Option } from "@glimmer/interfaces";
+import { Option } from '@glimmer/interfaces';
 import * as WireFormat from '@glimmer/wire-format';
 
-export default class TestMacros extends Macros {
+export default class TestMacros {
   constructor() {
-    super();
-
     let { blocks, inlines } = this;
 
     blocks.add('identity', (_params, _hash, template, _inverse, builder) => {
       builder.invokeStaticBlock(template!);
     });
 
-    blocks.add('render-inverse', (_params, _hash, _template, inverse, builder) => {
-      builder.invokeStaticBlock(inverse!);
-    });
+    blocks.add(
+      'render-inverse',
+      (_params, _hash, _template, inverse, builder) => {
+        builder.invokeStaticBlock(inverse!);
+      }
+    );
 
     blocks.addMissing((name, params, hash, template, inverse, builder) => {
       if (!params) {
         params = [];
       }
 
-      let { handle } = builder.compiler.resolveLayoutForTag(name, builder.referrer);
+      let { handle } = builder.compiler.resolveLayoutForTag(
+        name,
+        builder.referrer
+      );
 
       if (handle !== null) {
-        builder.component.static(handle, [params, hashToArgs(hash), template, inverse]);
+        builder.component.static(handle, [
+          params,
+          hashToArgs(hash),
+          template,
+          inverse
+        ]);
         return true;
       }
 
@@ -33,10 +40,18 @@ export default class TestMacros extends Macros {
     });
 
     inlines.addMissing((name, params, hash, builder) => {
-      let { handle } = builder.compiler.resolveLayoutForTag(name, builder.referrer);
+      let { handle } = builder.compiler.resolveLayoutForTag(
+        name,
+        builder.referrer
+      );
 
       if (handle !== null) {
-        builder.component.static(handle, [params!, hashToArgs(hash), null, null]);
+        builder.component.static(handle, [
+          params!,
+          hashToArgs(hash),
+          null,
+          null
+        ]);
         return true;
       }
 
@@ -45,7 +60,9 @@ export default class TestMacros extends Macros {
   }
 }
 
-function hashToArgs(hash: Option<WireFormat.Core.Hash>): Option<WireFormat.Core.Hash> {
+function hashToArgs(
+  hash: Option<WireFormat.Core.Hash>
+): Option<WireFormat.Core.Hash> {
   if (hash === null) return null;
   let names = hash[0].map(key => `@${key}`);
   return [names, hash[1]];

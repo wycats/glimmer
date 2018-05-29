@@ -1,32 +1,17 @@
-import { Option, Maybe, Simple, CompilableProgram, ComponentCapabilities, AnnotatedModuleLocator } from "@glimmer/interfaces";
 import {
-  Helper as GlimmerHelper,
-  DOMTreeConstruction,
-  ModifierManager,
-  ComponentDefinition,
-  CompilationOptions,
-  IDOMChanges,
-  DOMChanges,
-  VM,
-  Arguments,
-  getDynamicVar,
-  CurriedComponentDefinition,
-  curry,
-  ComponentManager,
-  renderMain,
-  DynamicScope,
-  ElementBuilder,
-  TemplateIterator
-} from "@glimmer/runtime";
-import { Template } from "@glimmer/interfaces";
-import { templateFactory, PartialDefinition, LazyCompiler } from "@glimmer/opcode-compiler";
-import { precompile } from "@glimmer/compiler";
-import { Program } from "@glimmer/program";
-import { TestDynamicScope } from "../../../environment";
+  Option,
+  Maybe,
+  Simple,
+  CompilableProgram,
+  ComponentCapabilities,
+  AnnotatedModuleLocator
+} from '@glimmer/interfaces';
+import { Template } from '@glimmer/interfaces';
+import { precompile } from '@glimmer/compiler';
+import { TestDynamicScope } from '../../../environment';
 import TestEnvironment from '../../environment';
 import { ComponentKind } from '../../../render-test';
 
-import LazyCompileTimeLookup from './lookup';
 import LazyRuntimeResolver from './runtime-resolver';
 
 import {
@@ -48,11 +33,10 @@ import {
 } from '../../components';
 
 import { UserHelper, HelperReference } from '../../helper';
-import { InertModifierManager } from '../../modifier';
-import TestMacros from '../../macros';
-import { Opaque } from "@glimmer/util";
-import { PathReference } from "@glimmer/reference";
-import { TemplateMeta } from "@glimmer/wire-format";
+import { Opaque } from '@glimmer/util';
+import { PathReference } from '@glimmer/reference';
+import { TemplateMeta } from '@glimmer/wire-format';
+import * as wasm from '@glimmer/low-level';
 
 const BASIC_COMPONENT_MANAGER = new BasicComponentManager();
 const EMBERISH_CURLY_COMPONENT_MANAGER = new EmberishCurlyComponentManager();
@@ -79,173 +63,261 @@ export const DEFAULT_TEST_META = Object.freeze({
   moduleName: 'index'
 });
 
-export type TestCompilationOptions = CompilationOptions<AnnotatedModuleLocator, LazyRuntimeResolver>;
+export default wasm.LazyTestEnvironment;
 
-export default class LazyTestEnvironment extends TestEnvironment<TestMeta> {
-  public resolver = new LazyRuntimeResolver();
-  protected program: Program<TestMeta>;
+// export type TestCompilationOptions = CompilationOptions<
+//   AnnotatedModuleLocator,
+//   LazyRuntimeResolver
+// >;
 
-  public compiler: LazyCompiler<TestMeta>;
+// export default class LazyTestEnvironment extends TestEnvironment<TestMeta> {
+//   public resolver = new LazyRuntimeResolver();
 
-  constructor(options?: TestEnvironmentOptions) {
-    super(testOptions(options));
+//   private compiler: Option<wasm.ProgramCompiler> = new wasm.ProgramCompiler();
+//   private program: Option<wasm.Program> = null;
+//   private vm: wasm.VM = new wasm.VM();
 
-    this.compiler = new LazyCompiler<TestMeta>(
-      new LazyCompileTimeLookup(this.resolver),
-      this.resolver,
-      new TestMacros()
-    );
+//   // private vm = new wasm.VM(this.program);
 
-    this.program = this.compiler.program;
+//   // constructor(options?: TestEnvironmentOptions) {
+//   //   super(testOptions(options));
 
-    // recursive field, so "unsafely" set one half late (but before the resolver is actually used)
-    this.resolver['compiler'] = this.compiler;
-    this.registerHelper("if", ([cond, yes, no]) => cond ? yes : no);
-    this.registerHelper("unless", ([cond, yes, no]) => cond ? no : yes);
-    this.registerInternalHelper("-get-dynamic-var", getDynamicVar);
-    this.registerModifier("action", new InertModifierManager());
+//   //   this.compiler = new LazyCompiler<TestMeta>(
+//   //     new LazyCompileTimeLookup(this.resolver),
+//   //     this.resolver,
+//   //     new TestMacros()
+//   //   );
 
-    this.registerInternalHelper("hash", (_vm: VM, args: Arguments) => args.capture().named);
-  }
+//   //   this.program = this.compiler.program;
 
-  renderMain<T>(template: Template<T>, self: PathReference<Opaque>, builder: ElementBuilder, dynamicScope: DynamicScope = new TestDynamicScope()): TemplateIterator {
-    let layout = template.asLayout();
-    let handle = layout.compile();
-    // TODO, figure out runtime program stuff
-    return renderMain(this.program, this, self, dynamicScope, builder, handle);
-  }
+//   //   // recursive field, so "unsafely" set one half late (but before the resolver is actually used)
+//   //   this.resolver['compiler'] = this.compiler;
+//   //   this.registerHelper('if', ([cond, yes, no]) => (cond ? yes : no));
+//   //   this.registerHelper('unless', ([cond, yes, no]) => (cond ? no : yes));
+//   //   this.registerInternalHelper('-get-dynamic-var', getDynamicVar);
+//   //   this.registerModifier('action', new InertModifierManager());
 
-  registerTemplate(name: string, source: string): { name: string, handle: number } {
-    return { name, handle: this.resolver.register("template-source", name, source) };
-  }
+//   //   this.registerInternalHelper(
+//   //     'hash',
+//   //     (_vm: VM, args: Arguments) => args.capture().named
+//   //   );
+//   // }
 
-  registerBasicComponent(name: string, Component: BasicComponentFactory, layoutSource: string): void {
-    if (name.indexOf('-') !== -1) {
-      throw new Error("DEPRECATED: dasherized components");
-    }
+//   renderMain<T>(
+//     template: Template<T>,
+//     self: PathReference<Opaque>,
+//     builder: ElementBuilder,
+//     dynamicScope: DynamicScope = new TestDynamicScope()
+//   ): wasm.TemplateIterator {
+//     let layout = template.asLayout();
 
-    let { handle } = this.registerTemplate(name, layoutSource);
+//     let handle = this.compiler.compile(layout);
 
-    this.registerComponent(name, 'Basic', BASIC_COMPONENT_MANAGER, handle, Component, BASIC_CAPABILITIES);
-  }
+//     return this.vm.render(handle);
+//   }
 
-  registerStaticTaglessComponent(name: string, Component: BasicComponentFactory, layoutSource: string): void {
-    let { handle } = this.registerTemplate(name, layoutSource);
+//   begin() {}
+//   commit() {}
 
-    this.registerComponent(name, 'Fragment', STATIC_TAGLESS_COMPONENT_MANAGER, handle, Component, STATIC_TAGLESS_CAPABILITIES);
-  }
+//   registerTemplate(
+//     name: string,
+//     source: string
+//   ): { name: string; handle: number } {
+//     return {
+//       name,
+//       handle: this.resolver.register('template-source', name, source)
+//     };
+//   }
 
-  registerEmberishCurlyComponent(name: string, Component: Option<EmberishCurlyComponentFactory>, layoutSource: Option<string>): void {
-    let layout: Option<{ name: string, handle: number }> = null;
+//   registerBasicComponent(
+//     name: string,
+//     Component: BasicComponentFactory,
+//     layoutSource: string
+//   ): void {
+//     if (name.indexOf('-') !== -1) {
+//       throw new Error('DEPRECATED: dasherized components');
+//     }
 
-    if (layoutSource !== null) {
-      layout = this.registerTemplate(name, layoutSource);
-    }
+//     let { handle } = this.registerTemplate(name, layoutSource);
 
-    let handle = layout ? layout.handle : null;
-    let ComponentClass = Component || EmberishCurlyComponent;
+//     this.registerComponent(
+//       name,
+//       'Basic',
+//       BASIC_COMPONENT_MANAGER,
+//       handle,
+//       Component,
+//       BASIC_CAPABILITIES
+//     );
+//   }
 
-    this.registerComponent(name, 'Curly', EMBERISH_CURLY_COMPONENT_MANAGER, handle, ComponentClass, CURLY_CAPABILITIES);
-  }
+//   registerStaticTaglessComponent(
+//     name: string,
+//     Component: BasicComponentFactory,
+//     layoutSource: string
+//   ): void {
+//     let { handle } = this.registerTemplate(name, layoutSource);
 
-  registerEmberishGlimmerComponent(name: string, Component: Option<EmberishGlimmerComponentFactory>, layoutSource: string): void {
-    if (name.indexOf('-') !== -1) {
-      throw new Error("DEPRECATED: dasherized components");
-    }
+//     this.registerComponent(
+//       name,
+//       'Fragment',
+//       STATIC_TAGLESS_COMPONENT_MANAGER,
+//       handle,
+//       Component,
+//       STATIC_TAGLESS_CAPABILITIES
+//     );
+//   }
 
-    let { handle } = this.registerTemplate(name, layoutSource);
+//   registerEmberishCurlyComponent(
+//     name: string,
+//     Component: Option<EmberishCurlyComponentFactory>,
+//     layoutSource: Option<string>
+//   ): void {
+//     let layout: Option<{ name: string; handle: number }> = null;
 
-    let ComponentClass = Component || EmberishGlimmerComponent;
+//     if (layoutSource !== null) {
+//       layout = this.registerTemplate(name, layoutSource);
+//     }
 
-    this.registerComponent(name, 'Glimmer', EMBERISH_GLIMMER_COMPONENT_MANAGER, handle, ComponentClass, EMBERISH_GLIMMER_CAPABILITIES);
-  }
+//     let handle = layout ? layout.handle : null;
+//     let ComponentClass = Component || EmberishCurlyComponent;
 
-  registerHelper(name: string, helper: UserHelper): GlimmerHelper {
-    let glimmerHelper = (_vm: VM, args: Arguments) => new HelperReference(helper, args);
-    this.resolver.register('helper', name, glimmerHelper);
-    return glimmerHelper;
-  }
+//     this.registerComponent(
+//       name,
+//       'Curly',
+//       EMBERISH_CURLY_COMPONENT_MANAGER,
+//       handle,
+//       ComponentClass,
+//       CURLY_CAPABILITIES
+//     );
+//   }
 
-  registerInternalHelper(name: string, helper: GlimmerHelper): GlimmerHelper {
-    this.resolver.register('helper', name, helper);
-    return helper;
-  }
+//   registerEmberishGlimmerComponent(
+//     name: string,
+//     Component: Option<EmberishGlimmerComponentFactory>,
+//     layoutSource: string
+//   ): void {
+//     if (name.indexOf('-') !== -1) {
+//       throw new Error('DEPRECATED: dasherized components');
+//     }
 
-  registerModifier(name: string, modifier: ModifierManager<any>): ModifierManager {
-    this.resolver.register('modifier', name, modifier);
-    return modifier;
-  }
+//     let { handle } = this.registerTemplate(name, layoutSource);
 
-  registerPartial(name: string, source: string): PartialDefinition {
-    let definition = new PartialDefinition(name, this.preprocess(source));
-    this.resolver.register('partial', name, definition);
-    return definition;
-  }
+//     let ComponentClass = Component || EmberishGlimmerComponent;
 
-  resolveHelper(helperName: string): Option<GlimmerHelper> {
-    let handle = this.resolver.lookupHelper(helperName);
-    return typeof handle === 'number' ? this.resolver.resolve<GlimmerHelper>(handle) : null;
-  }
+//     this.registerComponent(
+//       name,
+//       'Glimmer',
+//       EMBERISH_GLIMMER_COMPONENT_MANAGER,
+//       handle,
+//       ComponentClass,
+//       EMBERISH_GLIMMER_CAPABILITIES
+//     );
+//   }
 
-  resolvePartial(partialName: string): Option<PartialDefinition> {
-    let handle = this.resolver.lookupPartial(partialName);
-    return typeof handle === 'number' ? this.resolver.resolve<PartialDefinition>(handle) : null;
-  }
+//   registerHelper(name: string, helper: UserHelper): GlimmerHelper {
+//     let glimmerHelper = (_vm: VM, args: Arguments) =>
+//       new HelperReference(helper, args);
+//     this.resolver.register('helper', name, glimmerHelper);
+//     return glimmerHelper;
+//   }
 
-  componentHelper(name: string): Option<CurriedComponentDefinition> {
-    let handle = this.resolver.lookupComponentHandle(name);
+//   registerInternalHelper(name: string, helper: GlimmerHelper): GlimmerHelper {
+//     this.resolver.register('helper', name, helper);
+//     return helper;
+//   }
 
-    if (handle === null) return null;
+//   registerModifier(
+//     name: string,
+//     modifier: ModifierManager<any>
+//   ): ModifierManager {
+//     this.resolver.register('modifier', name, modifier);
+//     return modifier;
+//   }
 
-    let spec = this.resolver.resolve<ComponentDefinition>(handle);
-    return curry(spec);
-  }
+//   registerPartial(name: string, source: string): PartialDefinition {
+//     let definition = new PartialDefinition(name, this.preprocess(source));
+//     this.resolver.register('partial', name, definition);
+//     return definition;
+//   }
 
-  resolveModifier(modifierName: string): Option<ModifierManager> {
-    let handle = this.resolver.lookupModifier(modifierName);
-    return handle === null ? null : this.resolver.resolve<ModifierManager>(handle);
-  }
+//   resolveHelper(helperName: string): Option<GlimmerHelper> {
+//     let handle = this.resolver.lookupHelper(helperName);
+//     return typeof handle === 'number'
+//       ? this.resolver.resolve<GlimmerHelper>(handle)
+//       : null;
+//   }
 
-  preprocess(template: string, meta?: TestMeta): Template<TestMeta> {
-    let wrapper = JSON.parse(precompile(template));
-    let factory = templateFactory(wrapper);
-    return factory.create(this.compiler, (meta || DEFAULT_TEST_META));
-  }
+//   resolvePartial(partialName: string): Option<PartialDefinition> {
+//     let handle = this.resolver.lookupPartial(partialName);
+//     return typeof handle === 'number'
+//       ? this.resolver.resolve<PartialDefinition>(handle)
+//       : null;
+//   }
 
-  private registerComponent(name: string, type: ComponentKind, manager: ComponentManager<Opaque, Opaque>, layout: Option<number>, ComponentClass: Opaque, capabilities: ComponentCapabilities) {
-    let state: TestComponentDefinitionState = {
-      name,
-      type,
-      layout,
-      locator: locatorFor({ module: name, name: 'default' }),
-      capabilities,
-      ComponentClass
-    };
+//   componentHelper(name: string): Option<CurriedComponentDefinition> {
+//     let handle = this.resolver.lookupComponentHandle(name);
 
-    let definition = {
-      state,
-      manager
-    };
+//     if (handle === null) return null;
 
-    this.resolver.register('component', name, definition);
-    return definition;
-  }
-}
+//     let spec = this.resolver.resolve<ComponentDefinition>(handle);
+//     return curry(spec);
+//   }
 
-function testOptions(options: Maybe<TestEnvironmentOptions>) {
-  let document: Maybe<Simple.Document> = options ? options.document : undefined;
-  let appendOperations: Maybe<DOMTreeConstruction> = options && options.appendOperations;
-  let updateOperations: Maybe<IDOMChanges> = options && options.updateOperations;
+//   resolveModifier(modifierName: string): Option<ModifierManager> {
+//     let handle = this.resolver.lookupModifier(modifierName);
+//     return handle === null
+//       ? null
+//       : this.resolver.resolve<ModifierManager>(handle);
+//   }
 
-  if (!document) document = window.document;
+//   preprocess(template: string, meta?: TestMeta): Template<TestMeta> {
+//     let wrapper = JSON.parse(precompile(template));
+//     return this.templates.add(wrapper.block);
+//   }
 
-  if (!appendOperations) {
-    appendOperations = new DOMTreeConstruction(document);
-  }
+//   private registerComponent(
+//     name: string,
+//     type: ComponentKind,
+//     manager: ComponentManager<Opaque, Opaque>,
+//     layout: Option<number>,
+//     ComponentClass: Opaque,
+//     capabilities: ComponentCapabilities
+//   ) {
+//     let state: TestComponentDefinitionState = {
+//       name,
+//       type,
+//       layout,
+//       locator: locatorFor({ module: name, name: 'default' }),
+//       capabilities,
+//       ComponentClass
+//     };
 
-  if (!updateOperations) {
-    updateOperations = new DOMChanges(document as HTMLDocument);
-  }
+//     let definition = {
+//       state,
+//       manager
+//     };
 
-  return { appendOperations, updateOperations };
-}
+//     this.resolver.register('component', name, definition);
+//     return definition;
+//   }
+// }
+
+// function testOptions(options: Maybe<TestEnvironmentOptions>) {
+//   let document: Maybe<Simple.Document> = options ? options.document : undefined;
+//   let appendOperations: Maybe<DOMTreeConstruction> =
+//     options && options.appendOperations;
+//   let updateOperations: Maybe<IDOMChanges> =
+//     options && options.updateOperations;
+
+//   if (!document) document = window.document;
+
+//   if (!appendOperations) {
+//     appendOperations = new DOMTreeConstruction(document);
+//   }
+
+//   if (!updateOperations) {
+//     updateOperations = new DOMChanges(document as HTMLDocument);
+//   }
+
+//   return { appendOperations, updateOperations };
+// }

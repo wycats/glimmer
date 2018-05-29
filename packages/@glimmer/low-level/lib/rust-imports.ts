@@ -1,26 +1,86 @@
-import { memory } from "./rust_bg";
+import { Simple, Option } from '@glimmer/interfaces';
+import { assert } from '@glimmer/util';
 
-// Construct the array of imports needed to instantiate the WebAssembly module.
-//
-// These imports are all required by `src/ffi.rs` from Rust code and are
-// basically how Rust will talk back to JS during its execution.
-export function low_level_vm_debug_before(externs: any, offset: number): any {
-  return externs.debugBefore(offset);
+export {};
+
+export function println(s: string): void {
+  console.log(s);
 }
 
-export function low_level_vm_debug_after(externs: any,
-                                         state: any,
-                                         offset: number): void {
-  externs.debugAfter(offset, state);
+export interface DOMTree {
+  createElement(tag: string): Simple.Element;
+  createTextNode(data: string): Simple.Text;
+  insertBefore(
+    parent: Simple.Element,
+    node: Simple.Node,
+    reference: Option<Simple.Node>
+  ): void;
+  setAttribute(element: Simple.Element, name: string, value: string): void;
 }
 
-export function low_level_vm_evaluate_syscall(syscalls: any, vm: any, offset: number): void {
-  syscalls.evaluate(vm, offset);
+class BrowserDOMTree implements DOMTree {
+  constructor(private document: Simple.Document) {}
+
+  createElement(tag: string): Simple.Element {
+    return this.document.createElement(tag);
+  }
+
+  createTextNode(data: string): Simple.Text {
+    return this.document.createTextNode(data);
+  }
+
+  insertBefore(
+    parent: Simple.Element,
+    node: Simple.Node,
+    reference: Option<Simple.Node>
+  ): void {
+    parent.insertBefore(node, reference);
+  }
+
+  setAttribute(element: Simple.Element, name: string, value: string): void {
+    element.setAttribute(name, value);
+  }
 }
 
-export function low_level_vm_load_component(cx: any, gbox: number, ptr: number, component: number): void {
-  const buf = new Uint32Array(memory.buffer);
-  return cx.loadComponent(gbox, buf, ptr / 4, component);
+export function browserDOMTree(): DOMTree {
+  assert(
+    typeof document === 'object',
+    'BrowserDOMTree only works in a browser environment'
+  );
+
+  return new BrowserDOMTree(document);
 }
 
-export const debug_println = console.log;
+export function createElement(tree: DOMTree, tag: string): Simple.Element {
+  return tree.createElement(tag);
+}
+
+export function createTextNode(tree: DOMTree, data: string): Simple.Text {
+  return tree.createTextNode(data);
+}
+
+export function insertBefore(
+  tree: DOMTree,
+  parent: Simple.Element,
+  node: Simple.Node,
+  reference: Simple.Node
+): void {
+  tree.insertBefore(parent, node, reference);
+}
+
+export function append(
+  tree: DOMTree,
+  parent: Simple.Element,
+  node: Simple.Node
+): void {
+  tree.insertBefore(parent, node, null);
+}
+
+export function setAttribute(
+  tree: DOMTree,
+  element: Simple.Element,
+  name: string,
+  value: string
+): void {
+  tree.setAttribute(element, name, value);
+}

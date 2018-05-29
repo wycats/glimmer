@@ -1,7 +1,12 @@
-import { RehydrateBuilder, ElementBuilder, Environment, Cursor } from '@glimmer/runtime';
+import {
+  RehydrateBuilder,
+  ElementBuilder,
+  Environment,
+  Cursor
+} from '@glimmer/runtime';
 import { Simple } from '@glimmer/interfaces';
 
-export class DebugRehydrationBuilder extends RehydrateBuilder {
+export class DebugRehydrationBuilder {
   clearedNodes: Simple.Node[] = [];
 
   remove(node: Simple.Node) {
@@ -23,6 +28,9 @@ export class DebugRehydrationBuilder extends RehydrateBuilder {
   }
 }
 
-export function debugRehydration(env: Environment, cursor: Cursor): ElementBuilder {
+export function debugRehydration(
+  env: Environment,
+  cursor: Cursor
+): ElementBuilder {
   return DebugRehydrationBuilder.forInitialRender(env, cursor);
 }

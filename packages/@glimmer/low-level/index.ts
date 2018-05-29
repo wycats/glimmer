@@ -1,2 +1,11 @@
 export { booted, memory as wasmMemory } from './lib/rust_bg';
-export { LowLevelVM as WasmLowLevelVM, WasmHeap, num_allocated } from './lib/rust';
+export {
+  Cursor,
+  LazyTestEnvironment,
+  ProgramTemplate,
+  ProgramCompiler,
+  VMHandle,
+  TemplateIterator,
+  parse_template,
+  num_allocated
+} from './lib/rust';

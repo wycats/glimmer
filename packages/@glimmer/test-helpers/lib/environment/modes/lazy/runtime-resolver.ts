@@ -1,7 +1,5 @@
 import { RuntimeResolver, ComponentDefinition } from '@glimmer/interfaces';
-import { LazyCompiler } from '@glimmer/opcode-compiler';
 import { Option, Opaque } from '@glimmer/util';
-import { Invocation } from '@glimmer/runtime';
 
 import { TestMeta } from './environment';
 import Registry, { TypedRegistry, Lookup, LookupType } from '../../registry';
@@ -12,7 +10,11 @@ export default class LazyRuntimeResolver implements RuntimeResolver<TestMeta> {
 
   public compiler: LazyCompiler<TestMeta>;
 
-  register<K extends LookupType>(type: K, name: string, value: Lookup[K]): number {
+  register<K extends LookupType>(
+    type: K,
+    name: string,
+    value: Lookup[K]
+  ): number {
     let registry = this.registry[type];
     let handle = this.handleLookup.length;
     this.handleLookup.push(registry);
@@ -28,7 +30,11 @@ export default class LazyRuntimeResolver implements RuntimeResolver<TestMeta> {
     }
   }
 
-  compileTemplate(sourceHandle: number, templateName: string, create: (source: string, options: LazyCompiler<TestMeta>) => Invocation): Invocation {
+  compileTemplate(
+    sourceHandle: number,
+    templateName: string,
+    create: (source: string, options: LazyCompiler<TestMeta>) => Invocation
+  ): Invocation {
     let invocationHandle = this.lookup('template', templateName);
 
     if (invocationHandle) {
@@ -50,7 +56,10 @@ export default class LazyRuntimeResolver implements RuntimeResolver<TestMeta> {
     return this.lookup('modifier', name, referrer);
   }
 
-  lookupComponentDefinition(name: string, referrer?: {}): Option<ComponentDefinition> {
+  lookupComponentDefinition(
+    name: string,
+    referrer?: {}
+  ): Option<ComponentDefinition> {
     let handle = this.lookupComponentHandle(name, referrer);
     if (handle === null) return null;
     return this.resolve(handle) as ComponentDefinition;

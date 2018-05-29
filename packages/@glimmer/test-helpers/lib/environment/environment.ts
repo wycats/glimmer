@@ -1,7 +1,5 @@
-import { Environment, DOMTreeConstruction, IDOMChanges, PrimitiveReference, ConditionalReference } from '@glimmer/runtime';
 import { dict } from '@glimmer/util';
 import { Dict, RuntimeResolver, Opaque, VMHandle } from '@glimmer/interfaces';
-import { Program } from '@glimmer/program';
 import { Reference, isConst, OpaqueIterable } from '@glimmer/reference';
 
 import { KeyFor, Iterable } from './iterable';
@@ -11,7 +9,7 @@ export interface TestEnvironmentOptions {
   updateOperations: IDOMChanges;
 }
 
-export default abstract class TestEnvironment<Locator> extends Environment {
+export default abstract class TestEnvironment<Locator> {
   public compiledLayouts: Dict<VMHandle> = dict();
 
   protected abstract program: Program<Locator>;
@@ -19,7 +17,7 @@ export default abstract class TestEnvironment<Locator> extends Environment {
 
   protocolForURL(url: string): string {
     if (typeof window === 'undefined') {
-      let match =  /^([a-z][a-z0-9.+-]*:)?(\/\/)?([\S\s]*)/i.exec(url);
+      let match = /^([a-z][a-z0-9.+-]*:)?(\/\/)?([\S\s]*)/i.exec(url);
       return match && match[1] ? match[1].toLowerCase() : '';
     }
 
@@ -67,7 +65,7 @@ function emberToBool(value: any): boolean {
   }
 }
 
-class EmberishConditionalReference extends ConditionalReference {
+class EmberishConditionalReference {
   protected toBool(value: any): boolean {
     return emberToBool(value);
   }

@@ -1,7 +1,7 @@
-import { ASTPluginBuilder, preprocess } from "@glimmer/syntax";
-import { TemplateCompiler } from "@glimmer/compiler";
-import { expect } from "@glimmer/util";
-import { SerializedTemplateBlock } from "@glimmer/wire-format";
+import { ASTPluginBuilder, preprocess } from '@glimmer/syntax';
+import { TemplateCompiler } from '@glimmer/compiler';
+import { expect } from '@glimmer/util';
+import { SerializedTemplateBlock } from '@glimmer/wire-format';
 import {
   ProgramSymbolTable,
   Recast,
@@ -12,25 +12,12 @@ import {
   CompilableTemplate,
   CompileTimeLookup,
   LayoutWithContext
-} from "@glimmer/interfaces";
-import {
-  CompilableProgram as CompilableProgramInstance,
-  Macros,
-  OpcodeBuilderConstructor,
-  EagerOpcodeBuilder,
-  AbstractCompiler
-} from "@glimmer/opcode-compiler";
-import {
-  WriteOnlyProgram,
-  ConstantPool,
-  SerializedHeap
-} from "@glimmer/program";
+} from '@glimmer/interfaces';
 
-import ModuleLocatorMap from "./module-locator-map";
-import DebugConstants from "./debug-constants";
-import ExternalModuleTable from "./external-module-table";
-import BundleCompilerDelegate from "./delegate";
-import BundleCompilerLookup from "./lookup";
+import ModuleLocatorMap from './module-locator-map';
+import ExternalModuleTable from './external-module-table';
+import BundleCompilerDelegate from './delegate';
+import BundleCompilerLookup from './lookup';
 
 export interface BundleCompileOptions {
   plugins: ASTPluginBuilder[];
@@ -83,11 +70,17 @@ export interface PartialTemplateLocator<Locator> extends ModuleLocator {
 // to make --declaration happy
 export { CompilableTemplate };
 
-export class EagerCompiler<Locator> extends AbstractCompiler<Locator, EagerOpcodeBuilder<Locator>, WriteOnlyProgram> {
-  builderFor(containingLayout: LayoutWithContext<Locator>): EagerOpcodeBuilder<Locator> {
-    return new EagerOpcodeBuilder(this, containingLayout);
-  }
-}
+// export class EagerCompiler<Locator> extends AbstractCompiler<
+//   Locator,
+//   EagerOpcodeBuilder<Locator>,
+//   WriteOnlyProgram
+// > {
+//   builderFor(
+//     containingLayout: LayoutWithContext<Locator>
+//   ): EagerOpcodeBuilder<Locator> {
+//     return new EagerOpcodeBuilder(this, containingLayout);
+//   }
+// }
 
 /**
  * The BundleCompiler is used to compile all of the component templates in a
@@ -104,7 +97,10 @@ export class EagerCompiler<Locator> extends AbstractCompiler<Locator, EagerOpcod
  */
 export default class BundleCompiler<Locator> {
   public compilableTemplates = new ModuleLocatorMap<CompilableProgram>();
-  public compiledBlocks = new ModuleLocatorMap<SerializedTemplateBlock, TemplateLocator<Locator>>();
+  public compiledBlocks = new ModuleLocatorMap<
+    SerializedTemplateBlock,
+    TemplateLocator<Locator>
+  >();
   public meta = new ModuleLocatorMap<Locator>();
   public compiler: EagerCompiler<Locator>;
 
@@ -114,9 +110,12 @@ export default class BundleCompiler<Locator> {
   protected plugins: ASTPluginBuilder[];
   protected resolver: BundleCompilerLookup<Locator>;
 
-  constructor(delegate: BundleCompilerDelegate<Locator>, options: BundleCompilerOptions = {}) {
+  constructor(
+    delegate: BundleCompilerDelegate<Locator>,
+    options: BundleCompilerOptions = {}
+  ) {
     this.delegate = delegate;
-    let macros = this.macros = options.macros || new Macros();
+    let macros = (this.macros = options.macros || new Macros());
 
     let program = options.program || new WriteOnlyProgram(new DebugConstants());
     this.plugins = options.plugins || [];
@@ -127,7 +126,10 @@ export default class BundleCompiler<Locator> {
   /**
    * Adds the template source code for a component to the bundle.
    */
-  add(_locator: PartialTemplateLocator<Locator>, templateSource: string): SerializedTemplateBlock {
+  add(
+    _locator: PartialTemplateLocator<Locator>,
+    templateSource: string
+  ): SerializedTemplateBlock {
     let locator = normalizeLocator(_locator);
 
     let block = this.preprocess(templateSource);
@@ -175,7 +177,7 @@ export default class BundleCompiler<Locator> {
     let { heap, constants } = this.compiler.program;
 
     return {
-      main: main as Recast<Unique<"Handle">, number>,
+      main: main as Recast<Unique<'Handle'>, number>,
       heap: heap.capture() as SerializedHeap,
       pool: constants.toPool(),
       table: this.resolver.getTable(),
@@ -183,9 +185,7 @@ export default class BundleCompiler<Locator> {
     };
   }
 
-  preprocess(
-    input: string
-  ): SerializedTemplateBlock {
+  preprocess(input: string): SerializedTemplateBlock {
     let ast = preprocess(input, { plugins: { ast: this.plugins } });
     let template = TemplateCompiler.compile(ast);
     return template.toJSON();
@@ -194,7 +194,10 @@ export default class BundleCompiler<Locator> {
   compilerResolver(): CompileTimeLookup<Locator> {
     let resolver = this.resolver;
     if (!resolver) {
-      resolver = this.resolver = new BundleCompilerLookup<Locator>(this.delegate, this);
+      resolver = this.resolver = new BundleCompilerLookup<Locator>(
+        this.delegate,
+        this
+      );
     }
 
     return resolver;
@@ -215,7 +218,9 @@ export default class BundleCompiler<Locator> {
     // bundle via the add() or addCompilableTemplate() methods.
     let compilableTemplate = expect(
       this.compilableTemplates.get(locator),
-      `Can't compile a template that wasn't already added to the bundle (${locator.name} @ ${locator.module})`
+      `Can't compile a template that wasn't already added to the bundle (${
+        locator.name
+      } @ ${locator.module})`
     );
 
     // Compile the template, which writes opcodes to the heap and returns the VM
@@ -236,12 +241,14 @@ export default class BundleCompiler<Locator> {
  * like the `kind` with the appropriate value and avoid boilerplate on the part
  * of API consumers.
  */
-function normalizeLocator<T>(locator: PartialTemplateLocator<T>): TemplateLocator<T> {
+function normalizeLocator<T>(
+  locator: PartialTemplateLocator<T>
+): TemplateLocator<T> {
   let { module, name, meta } = locator;
   return {
     module,
     name,
     kind: 'template',
-    meta: meta || {} as T
+    meta: meta || ({} as T)
   };
 }

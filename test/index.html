@@ -1,19 +1,21 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="utf-8">
   <title>Glimmer Test Suite</title>
   <link rel="stylesheet" href="assets/qunit.css">
 </head>
+
 <body>
   <script>
     if (typeof console === "undefined") {
       console = {
-        log: function(){},
-        warn: function(){},
-        error: function(){},
-        group: function(){},
-        groupEnd: function(){},
+        log: function () { },
+        warn: function () { },
+        error: function () { },
+        group: function () { },
+        groupEnd: function () { },
       }
     }
   </script>
@@ -62,7 +64,7 @@
       testMatch = /-test$/;
     }
 
-    Object.keys(requireModule.entries).forEach(function(entry) {
+    Object.keys(requireModule.entries).forEach(function (entry) {
       if (entry.match(testMatch)) {
         if (notslint && entry.match(/\.lint-test$/)) return;
         requireModule(entry)
@@ -90,21 +92,25 @@
     //   that the amount of memory in use is the same before and after each
     //   test.
 
-    var numAllocated = 0;
+    // var numAllocated = 0;
     var lowLevel = require('@glimmer/low-level');
-    var freeAllWasmPrograms = require('@glimmer/program').freeAllWasmPrograms;
+    // var freeAllWasmPrograms = require('@glimmer/program').freeAllWasmPrograms;
 
-    QUnit.testStart(function() {
-      numAllocated = lowLevel.num_allocated();
-    });
-    QUnit.testDone(function(details) {
-      freeAllWasmPrograms();
-      if (lowLevel.num_allocated() != numAllocated)
-        throw new Error("the test " + details.name + " didn't free all wasm memory")
-    });
+    // QUnit.testStart(function () {
+    //   numAllocated = lowLevel.num_allocated();
+    // });
+    // QUnit.testDone(function (details) {
+    //   freeAllWasmPrograms();
+    //   if (lowLevel.num_allocated() != numAllocated)
+    //     throw new Error("the test " + details.name + " didn't free all wasm memory")
+    // });
+
     lowLevel.booted.then(() => {
       QUnit.start();
     });
+
+    // QUnit.start();
   </script>
 </body>
+
 </html>

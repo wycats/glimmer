@@ -1,6 +1,4 @@
-import { IDOMChanges, DOMChanges } from '@glimmer/runtime';
 import { Simple, Maybe } from '@glimmer/interfaces';
-import { NodeDOMTreeConstruction } from '@glimmer/node';
 import * as SimpleDOM from 'simple-dom';
 
 import LazyTestEnvironment from '../lazy/environment';
@@ -17,8 +15,10 @@ export interface NodeEnvironmentOptions {
 
 function testOptions(options: NodeEnvironmentOptions) {
   let document = options.document;
-  let appendOperations: Maybe<NodeDOMTreeConstruction> = options && options.appendOperations;
-  let updateOperations: Maybe<IDOMChanges> = options && options.updateOperations;
+  let appendOperations: Maybe<NodeDOMTreeConstruction> =
+    options && options.appendOperations;
+  let updateOperations: Maybe<IDOMChanges> =
+    options && options.updateOperations;
 
   if (!appendOperations) {
     appendOperations = new NodeDOMTreeConstruction(document);
@@ -29,7 +29,6 @@ function testOptions(options: NodeEnvironmentOptions) {
   }
 
   return { appendOperations, updateOperations, document };
-
 }
 
 export class NodeEnv extends LazyTestEnvironment {
@@ -69,7 +68,9 @@ export class AbstractNodeTest extends RenderTest {
     this.assert.equal(el.getAttribute('class'), 'ember-view');
     this.assert.ok(el.getAttribute('id'));
     this.assert.ok(el.getAttribute('id')!.indexOf('ember') > -1);
-    let serialized = this.serializer.serializeChildren(this.element.firstChild!);
+    let serialized = this.serializer.serializeChildren(
+      this.element.firstChild!
+    );
     this.assert.equal(serialized, html);
   }
 }

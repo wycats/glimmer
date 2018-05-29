@@ -1,20 +1,15 @@
 import * as SimpleDOM from 'simple-dom';
 import {
-  Environment,
-  ComponentDefinition,
-  getDynamicVar,
-  Helper as GlimmerHelper,
-  RenderResult,
-  ComponentManager,
-  clientBuilder,
-  ElementBuilder,
-  Cursor,
-  renderMain
-} from '@glimmer/runtime';
-import { DebugConstants, BundleCompiler, ModuleLocatorMap } from '@glimmer/bundle-compiler';
+  DebugConstants,
+  BundleCompiler,
+  ModuleLocatorMap
+} from '@glimmer/bundle-compiler';
 import { Opaque, assert, Dict, assign, expect, Option } from '@glimmer/util';
-import { WriteOnlyProgram, RuntimeProgram, RuntimeConstants, Heap } from '@glimmer/program';
-import { ProgramSymbolTable, ComponentCapabilities, ModuleLocator } from '@glimmer/interfaces';
+import {
+  ProgramSymbolTable,
+  ComponentCapabilities,
+  ModuleLocator
+} from '@glimmer/interfaces';
 import { UpdatableReference } from '@glimmer/object-reference';
 
 import RenderDelegate from '../../../render-delegate';
@@ -23,9 +18,21 @@ import { ComponentKind, renderSync } from '../../../render-test';
 import TestMacros from '../../macros';
 import { UserHelper, HelperReference } from '../../helper';
 
-import { BasicComponent, BasicComponentManager, BASIC_CAPABILITIES } from '../../components/basic';
-import { EmberishCurlyComponent, EmberishCurlyComponentManager, EMBERISH_CURLY_CAPABILITIES } from '../../components/emberish-curly';
-import { EmberishGlimmerComponent, EmberishGlimmerComponentManager, EMBERISH_GLIMMER_CAPABILITIES } from '../../components/emberish-glimmer';
+import {
+  BasicComponent,
+  BasicComponentManager,
+  BASIC_CAPABILITIES
+} from '../../components/basic';
+import {
+  EmberishCurlyComponent,
+  EmberishCurlyComponentManager,
+  EMBERISH_CURLY_CAPABILITIES
+} from '../../components/emberish-curly';
+import {
+  EmberishGlimmerComponent,
+  EmberishGlimmerComponentManager,
+  EMBERISH_GLIMMER_CAPABILITIES
+} from '../../components/emberish-glimmer';
 
 import EagerTestEnvironment from './environment';
 import EagerRuntimeResolver from './runtime-resolver';
@@ -33,10 +40,14 @@ import EagerRuntimeResolver from './runtime-resolver';
 import { Modules } from './modules';
 import { TestDynamicScope } from '../../../environment';
 import { NodeEnv } from '../ssr/environment';
-import { TestComponentDefinitionState, locatorFor } from '../../component-definition';
-import { WrappedBuilder } from "@glimmer/opcode-compiler";
+import {
+  TestComponentDefinitionState,
+  locatorFor
+} from '../../component-definition';
 
-export type RenderDelegateComponentDefinition = ComponentDefinition<TestComponentDefinitionState>;
+export type RenderDelegateComponentDefinition = ComponentDefinition<
+  TestComponentDefinitionState
+>;
 
 type Entries<T> = { [F in ComponentKind]: Option<T> };
 
@@ -68,16 +79,24 @@ export default class EagerRenderDelegate implements RenderDelegate {
   protected env: Environment;
   protected modules = new Modules();
   protected compileTimeModules = new Modules();
-  protected components: Dict<ComponentDefinition<TestComponentDefinitionState>> = {};
-  protected symbolTables = new ModuleLocatorMap<ProgramSymbolTable, ModuleLocator>();
+  protected components: Dict<
+    ComponentDefinition<TestComponentDefinitionState>
+  > = {};
+  protected symbolTables = new ModuleLocatorMap<
+    ProgramSymbolTable,
+    ModuleLocator
+  >();
   public constants: DebugConstants;
 
   constructor(env: Environment) {
     this.env = env || new EagerTestEnvironment();
-    this.registerInternalHelper("-get-dynamic-var", getDynamicVar);
+    this.registerInternalHelper('-get-dynamic-var', getDynamicVar);
   }
 
-  private registerInternalHelper(name: string, helper: GlimmerHelper): GlimmerHelper {
+  private registerInternalHelper(
+    name: string,
+    helper: GlimmerHelper
+  ): GlimmerHelper {
     this.modules.register(name, 'helper', { default: helper });
     return helper;
   }
@@ -94,7 +113,13 @@ export default class EagerRenderDelegate implements RenderDelegate {
     return this.env.getAppendOperations().createElement('div') as HTMLElement;
   }
 
-  registerComponent(type: ComponentKind, testType: ComponentKind, name: string, template: string, Class?: Opaque): void {
+  registerComponent(
+    type: ComponentKind,
+    testType: ComponentKind,
+    name: string,
+    template: string,
+    Class?: Opaque
+  ): void {
     let module = `ui/components/${name}`;
 
     let ComponentClass = Class || COMPONENT_CLASSES[type];
@@ -130,13 +155,21 @@ export default class EagerRenderDelegate implements RenderDelegate {
   }
 
   registerHelper(name: string, helper: UserHelper): void {
-    let glimmerHelper: GlimmerHelper = (_vm, args) => new HelperReference(helper, args);
+    let glimmerHelper: GlimmerHelper = (_vm, args) =>
+      new HelperReference(helper, args);
     this.modules.register(name, 'helper', { default: glimmerHelper });
   }
 
-  renderTemplate(template: string, context: Dict<Opaque>, element: HTMLElement): RenderResult {
+  renderTemplate(
+    template: string,
+    context: Dict<Opaque>,
+    element: HTMLElement
+  ): RenderResult {
     let macros = new TestMacros();
-    let delegate: EagerCompilerDelegate = new EagerCompilerDelegate(this.components, this.modules);
+    let delegate: EagerCompilerDelegate = new EagerCompilerDelegate(
+      this.components,
+      this.modules
+    );
     this.constants = new DebugConstants();
     let program = new WriteOnlyProgram(this.constants);
     let bundleCompiler = new BundleCompiler(delegate, { macros, program });
@@ -146,7 +179,10 @@ export default class EagerRenderDelegate implements RenderDelegate {
 
     let { components, modules, compileTimeModules } = this;
     Object.keys(components).forEach(key => {
-      assert(key.indexOf('ui/components') !== -1, `Expected component key to start with ui/components, got ${key}.`);
+      assert(
+        key.indexOf('ui/components') !== -1,
+        `Expected component key to start with ui/components, got ${key}.`
+      );
 
       let { state, manager } = components[key];
 
@@ -155,7 +191,7 @@ export default class EagerRenderDelegate implements RenderDelegate {
       let block;
       let symbolTable;
 
-      if (state.type === "Curly" || state.type === "Dynamic") {
+      if (state.type === 'Curly' || state.type === 'Dynamic') {
         let block = bundleCompiler.preprocess(state.template!);
         let parsedLayout = { block, referrer: locator.meta, asPartial: false };
         let wrapped = new WrappedBuilder(bundleCompiler.compiler, parsedLayout);
@@ -167,10 +203,16 @@ export default class EagerRenderDelegate implements RenderDelegate {
 
         symbolTable = wrapped.symbolTable;
       } else {
-        block = bundleCompiler.add(locator, expect(state.template, 'expected component definition state to have template'));
+        block = bundleCompiler.add(
+          locator,
+          expect(
+            state.template,
+            'expected component definition state to have template'
+          )
+        );
         symbolTable = {
           hasEval: block.hasEval,
-          symbols: block.symbols,
+          symbols: block.symbols
         };
 
         this.symbolTables.set(locator, symbolTable);
@@ -206,11 +248,25 @@ export default class EagerRenderDelegate implements RenderDelegate {
     let builder = this.getElementBuilder(env, cursor);
     let self = this.getSelf(context);
     let dynamicScope = new TestDynamicScope();
-    let resolver = new EagerRuntimeResolver(table, this.modules, this.symbolTables);
+    let resolver = new EagerRuntimeResolver(
+      table,
+      this.modules,
+      this.symbolTables
+    );
     let runtimeHeap = new Heap(heap);
-    let runtimeProgram = new RuntimeProgram(new RuntimeConstants(resolver, pool), runtimeHeap);
+    let runtimeProgram = new RuntimeProgram(
+      new RuntimeConstants(resolver, pool),
+      runtimeHeap
+    );
 
-    let iterator = renderMain(runtimeProgram, env, self, dynamicScope, builder, handle);
+    let iterator = renderMain(
+      runtimeProgram,
+      env,
+      self,
+      dynamicScope,
+      builder,
+      handle
+    );
 
     return renderSync(env, iterator);
   }
