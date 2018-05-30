@@ -1,4 +1,4 @@
-import { Simple, Option } from '@glimmer/interfaces';
+import { Simple, Option, Opaque } from '@glimmer/interfaces';
 import { assert } from '@glimmer/util';
 
 export {};
@@ -83,4 +83,8 @@ export function setAttribute(
   value: string
 ): void {
   tree.setAttribute(element, name, value);
+}
+
+export function get(obj: object, key: string): Opaque {
+  return obj && obj[key];
 }

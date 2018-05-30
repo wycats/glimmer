@@ -9,11 +9,14 @@ extern crate wasm_bindgen;
 
 use wasm_bindgen::prelude::*;
 
+#[macro_use]
+pub mod debug;
 pub mod ffi;
 pub mod hir;
 pub mod opcode_compiler;
 pub mod parse;
 pub mod program;
+pub mod runtime;
 pub mod template;
 pub mod test_support;
 pub mod vm;

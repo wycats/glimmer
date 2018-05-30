@@ -9,7 +9,23 @@ extern "C" {
     pub type Element;
     pub type Text;
 
-    pub fn println(s: String);
+    pub fn println(s: &str);
+    pub fn get(obj: &JsValue, key: &str) -> JsValue;
+
+    #[derive(Debug)]
+    pub type Tag;
+
+    #[wasm_bindgen(method)]
+    pub fn value(this: &Tag) -> u32;
+
+    #[wasm_bindgen(method)]
+    pub fn validate(this: &Tag, snapshot: u32) -> bool;
+
+    #[wasm_bindgen(js_name = tagForProperty)]
+    pub fn tag_for_property(parent: &JsValue, key: &str) -> Tag;
+
+    #[wasm_bindgen(js_name = isConst)]
+    pub fn is_const_tag(tag: &Tag) -> bool;
 
     #[wasm_bindgen(js_name = browserDOMTree)]
     pub fn browser_dom_tree() -> DOMTree;

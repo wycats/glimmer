@@ -1,7 +1,10 @@
 use ffi::println;
 use hir::Attribute;
+use hir::Expression;
 use hir::Parameter;
+use hir::Positional;
 use hir::Statement;
+use hir::Value;
 use program::VMHandle;
 use program::{ConstantString, Constants, Program};
 use template::Template;
@@ -72,6 +75,10 @@ impl Encoder {
         VMHandle::new(self.buffer.len() as u32)
     }
 
+    fn compile_expression(&mut self, expression: &Expression) {
+        ExpressionEncoder::from_encoder(self).compile_expression(expression)
+    }
+
     fn compile_statement(&mut self, statement: &Statement) {
         match statement {
             Statement::Text(s) => {
@@ -88,8 +95,7 @@ impl Encoder {
             Statement::Parameter(p) => self.compile_parameter(p),
 
             rest => {
-                println(format!("Unimplemented compile {:?}", rest));
-                unimplemented!();
+                panic!("Unimplemented compile {:?}", rest);
             }
         }
     }
@@ -115,15 +121,101 @@ impl Encoder {
                 });
             }
 
+            Attribute::DynamicAttr {
+                name,
+                value,
+                namespace,
+            } => {
+                self.compile_expression(value);
+                self.buffer.push(Opcode::CautiousAttr {
+                    name: self.constants.add_string(&name),
+                    namespace: None,
+                })
+            }
+
             rest => {
-                println(format!("Unimplemented compile attribute {:?}", rest));
-                unimplemented!()
+                panic!("Unimplemented compile attribute {:?}", rest);
             }
         }
     }
 
     fn exit(&mut self) {
         self.buffer.push(Opcode::Exit);
+    }
+}
+
+struct ExpressionEncoder<'compiler> {
+    buffer: &'compiler mut Vec<Opcode>,
+    constants: &'compiler mut Constants,
+}
+
+impl ExpressionEncoder<'compiler> {
+    fn from_encoder(encoder: &mut Encoder) -> ExpressionEncoder {
+        ExpressionEncoder {
+            buffer: &mut encoder.buffer,
+            constants: &mut encoder.constants,
+        }
+    }
+
+    fn compile_expression(&mut self, expression: &Expression) {
+        match expression {
+            Expression::Undefined => self.push_primitive_reference(Primitive::Undefined),
+            Expression::Concat(positional) => {
+                self.compile_positional(positional);
+                self.buffer
+                    .push(Opcode::Concat(positional.expressions.len() as u32));
+            }
+            Expression::Value(value) => self.compile_value(value),
+            Expression::Unknown(name) => self.compile_unknown(name),
+
+            rest => panic!("Unimplemented compile expression {:?}", rest),
+        }
+    }
+
+    fn compile_value(&mut self, value: &Value) {
+        match value {
+            Value::String(string) => self.constant_string(string),
+            Value::Integer(int) => self
+                .buffer
+                .push(Opcode::Primitive(Primitive::Integer(*int))),
+            Value::Float(float) => self
+                .buffer
+                .push(Opcode::Primitive(Primitive::Float(*float))),
+            Value::Boolean(boolean) => self
+                .buffer
+                .push(Opcode::Primitive(Primitive::Boolean(*boolean))),
+            Value::Null => self.buffer.push(Opcode::Primitive(Primitive::Null)),
+        }
+    }
+
+    fn constant_string(&mut self, string: &str) {
+        let constant = self.constants.add_string(string);
+        self.buffer.push(Opcode::String(constant));
+    }
+
+    fn compile_unknown(&mut self, name: &str) {
+        // TODO: Handle helpers via dynamic resolver
+        self.buffer.push(Opcode::GetVariable(0));
+        self.buffer
+            .push(Opcode::GetProperty(self.constants.add_string(name)));
+    }
+
+    fn compile_positional(&mut self, positional: &Positional) {
+        for expr in &positional.expressions {
+            self.compile_expression(expr);
+        }
+    }
+
+    fn push_primitive_reference(&mut self, primitive: Primitive) {
+        self.push_primitive(primitive);
+    }
+
+    fn push_primitive(&mut self, primitive: Primitive) {
+        self.buffer.push(Opcode::Primitive(primitive));
+    }
+
+    fn primitive_reference(&mut self) {
+        self.buffer.push(Opcode::PrimitiveReference);
     }
 }
 
@@ -146,6 +238,8 @@ impl ProgramTemplate {
 
 #[derive(Copy, Clone, Debug)]
 crate enum Opcode {
+    GetVariable(u32),
+    GetProperty(ConstantString),
     Text(ConstantString),
     OpenElement(ConstantString),
     StaticAttr {
@@ -153,7 +247,32 @@ crate enum Opcode {
         value: ConstantString,
         namespace: Option<ConstantString>,
     },
+    TrustingAttr {
+        name: ConstantString,
+        namespace: Option<ConstantString>,
+    },
+    CautiousAttr {
+        name: ConstantString,
+        namespace: Option<ConstantString>,
+    },
     FlushElement,
     CloseElement,
+    PushFrame,
+    PopFrame,
+    Primitive(Primitive),
+    String(ConstantString),
+    PrimitiveReference,
+    Concat(u32),
     Exit,
+}
+
+#[derive(Copy, Clone, Debug)]
+crate enum Primitive {
+    Undefined,
+    Null,
+    True,
+    False,
+    Integer(i64),
+    Float(f64),
+    Boolean(bool),
 }

@@ -1,3 +1,4 @@
+use vm::stack::Stack;
 use wasm_bindgen::prelude::*;
 
 use opcode_compiler::Opcode;
@@ -8,10 +9,13 @@ use vm::element::{
     DOMElementBuilder, DOMElementBuilderDelegate, ElementBuilder, ElementBuilderDelegate,
 };
 use vm::evaluate::TemplateIterator;
+use vm::state::VmState;
 
 pub mod cursor;
 pub mod element;
 pub mod evaluate;
+pub mod stack;
+pub mod state;
 
 pub struct VM<'render> {
     program: Program<'render>,
@@ -29,27 +33,5 @@ impl VM<'program> {
 
     pub fn next(&mut self, iterator: &mut TemplateIterator) -> bool {
         iterator.next(self.program)
-    }
-}
-
-crate struct VmState {
-    builder: Box<dyn ElementBuilder>,
-    pc: i32,
-}
-
-impl VmState {
-    fn browser(root: Cursor, pc: i32) -> VmState {
-        VmState {
-            builder: DOMElementBuilder::browser(root),
-            pc,
-        }
-    }
-
-    fn next(&mut self) {
-        self.pc += 1;
-    }
-
-    fn goto(&mut self, target: i32) {
-        self.pc = target;
     }
 }

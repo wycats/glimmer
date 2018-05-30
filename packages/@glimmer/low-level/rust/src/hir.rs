@@ -15,12 +15,12 @@ pub enum Core {
 
 #[derive(Debug)]
 pub struct PathExpression {
-    parts: Vec<String>,
+    crate parts: Vec<String>,
 }
 
 #[derive(Debug)]
 pub struct Positional {
-    expressions: Vec<Expression>,
+    crate expressions: Vec<Expression>,
 }
 
 #[derive(Debug)]
@@ -46,7 +46,7 @@ pub enum Expression {
 #[derive(Debug)]
 pub enum Value {
     String(String),
-    Integer(u64),
+    Integer(i64),
     Float(f64),
     Boolean(bool),
     Null,

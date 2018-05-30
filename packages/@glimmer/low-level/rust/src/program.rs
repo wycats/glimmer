@@ -24,7 +24,7 @@ impl Program<'program> {
         Program { constants, opcodes }
     }
 
-    crate fn at(&self, at: u32) -> Opcode {
+    crate fn at(&self, at: i32) -> Opcode {
         self.opcodes[at as usize]
     }
 
