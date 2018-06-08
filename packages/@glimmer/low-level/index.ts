@@ -7,5 +7,6 @@ export {
   VMHandle,
   TemplateIterator,
   parse_template,
-  num_allocated
+  num_allocated,
+  init_wasm_logger
 } from './lib/rust';

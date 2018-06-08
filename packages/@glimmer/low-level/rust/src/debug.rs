@@ -1,6 +1,7 @@
 #![allow(dead_code, unused_macros)]
 
 use std::fmt;
+use log::{self, Log, Record, Level, Metadata, SetLoggerError};
 
 use wasm_bindgen;
 
@@ -52,4 +53,46 @@ pub fn _panic2(args: &fmt::Arguments, &(file, line): &(&str, u32)) -> ! {
 
 pub fn abort() -> ! {
     wasm_bindgen::throw("rust had to abort")
+}
+
+struct WasmLogger;
+
+impl Log for WasmLogger {
+    fn enabled(&self, metadata: &Metadata) -> bool {
+        metadata.level() <= log::max_level()
+    }
+
+    fn log(&self, record: &Record) {
+        if self.enabled(record.metadata()) {
+            let message = format!("{:?}", record.args());
+
+            match record.metadata().level() {
+                Level::Info => ffi::console_info(&message),
+                Level::Warn => ffi::console_warn(&message),
+                Level::Error => ffi::console_error(&message),
+                Level::Trace | Level::Debug => ffi::console_debug(&message),
+            }
+        }
+    }
+
+    fn flush(&self) {}
+}
+
+static WASM_LOGGER: WasmLogger = WasmLogger;
+
+#[wasm_bindgen()]
+pub fn init_wasm_logger(level: &str) {
+    log::set_logger(&WASM_LOGGER).unwrap();
+
+    let filter = match level {
+        "trace" => log::LevelFilter::Trace,
+        "debug" => log::LevelFilter::Debug,
+        "info" => log::LevelFilter::Info,
+        "warn" => log::LevelFilter::Warn,
+        "error" => log::LevelFilter::Error,
+        "off" => log::LevelFilter::Off,
+        _ => panic!("Initializing logger with invalid level filter {:?}", level)
+    };
+
+    log::set_max_level(filter);
 }

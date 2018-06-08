@@ -5,6 +5,7 @@ use vm::element::ElementBuilder;
 use vm::stack::Stack;
 use vm::stack::StackEntry;
 
+#[derive(Debug)]
 crate struct Registers {
     crate pc: i32,
     crate ra: i32,
@@ -17,6 +18,7 @@ impl Registers {
     }
 }
 
+#[derive(Debug)]
 crate struct VmState {
     crate builder: Box<dyn ElementBuilder>,
     crate stack: Stack,
@@ -39,7 +41,7 @@ impl VmState {
 
     crate fn stack_pointer(&self, offset: u32) -> StackEntry {
         let fp = self.registers.fp;
-        StackEntry::StackPointer(fp + 1 + offset)
+        StackEntry::StackPointer(fp + offset)
     }
 
     crate fn browser(root: Cursor, pc: i32) -> VmState {
@@ -56,5 +58,29 @@ impl VmState {
 
     crate fn goto(&mut self, target: i32) {
         self.registers.pc = target;
+    }
+
+    crate fn push_frame(&mut self) {
+        self.stack.push(StackEntry::FrameStart {
+            ra: self.registers.ra,
+            fp: self.stack.len()
+        });
+
+        self.registers.fp = self.stack.len();
+    }
+
+    crate fn pop_frame(&mut self) {
+        self.stack.truncate(self.registers.fp);
+
+        match self.stack.pop() {
+            StackEntry::FrameStart { ra, fp } => {
+                self.registers.ra = ra;
+                self.stack.truncate(fp);
+            }
+
+            rest => {
+                panic!("Expected top of stack to be FrameStart, was {:?}", rest);
+            }
+        }
     }
 }

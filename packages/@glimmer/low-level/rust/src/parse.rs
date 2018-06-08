@@ -9,7 +9,7 @@ pub fn parse(statements: &JsonValue) -> Vec<Statement> {
 }
 
 fn parse_statement(statement: &JsonValue) -> Statement {
-    debug_println!("Parsing statement {:?}", statement);
+    trace!("Parsing statement {:#?}", statement);
 
     let statement = statement.as_array().unwrap();
 
@@ -35,16 +35,19 @@ fn parse_statement(statement: &JsonValue) -> Statement {
 }
 
 fn parse_expression(expression: &JsonValue) -> Expression {
-    debug_println!("Parsing expression {:?}", expression);
+    trace!("Parsing expression {:?}", expression);
 
-    match expression {
+    let expression = match expression {
         JsonValue::Array(vec) => parse_sexp(&vec),
         JsonValue::String(string) => Expression::Value(Value::String(string.clone())),
         JsonValue::Null => Expression::Value(Value::Null),
         rest => {
             panic!("Unimplemented parse expression {:#?}", rest);
         }
-    }
+    };
+
+    trace!("Parsed {:?}", expression);
+    expression
 }
 
 fn parse_sexp(expression: &[JsonValue]) -> Expression {

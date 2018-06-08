@@ -1,97 +1,119 @@
-mod combine;
+crate mod combine;
+crate mod updatable;
 
+use self::combine::TagsPair;
+use runtime::validator::combine::TagsCombinator;
+use std::cell::RefCell;
 use std::fmt::{self, Debug};
-use ffi::{Tag, is_const_tag};
-use self::combine::{CachedTag, TagsPair};
+use std::rc::Rc;
 
-static mut REVISION: u64 = 0;
+pub static INITIAL: u64 = 1;
+static mut REVISION: u64 = 1;
 
 pub fn revision() -> u64 {
-    REVISION
+    unsafe { REVISION }
 }
 
 pub fn bump() -> u64 {
-    unsafe { REVISION += 1 };
-    REVISION
+    unsafe {
+        REVISION += 1;
+        REVISION
+    }
 }
 
 pub trait ValidatorTrait: Debug {
     fn value(&self) -> u64;
-    fn validate(&self, snapshot: u64) -> bool;
+
+    fn validate(&self, snapshot: u64) -> bool {
+        self.value() == snapshot
+    }
 
     fn is_const(&self) -> bool {
         false
     }
 }
 
-crate enum Validator {
-    Constant,
-    Js(Tag),
-    Updatable(Box<UpdatableTag>),
-    Cached(Box<CachedTag>),
-    Pair(Box<TagsPair>),
-    Other(Box<dyn ValidatorTrait>)
-}
+impl ValidatorTrait for Box<dyn ValidatorTrait + Sync> {
+    fn value(&self) -> u64 {
+        (**self).value()
+    }
 
-impl fmt::Debug for Validator {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Validator::Js(tag) => write!(f, "JS Tag"),
-            Validator::Other(tag) => tag.fmt(f)
-        }
+    fn validate(&self, snapshot: u64) -> bool {
+        (**self).validate(snapshot)
+    }
+
+    fn is_const(&self) -> bool {
+        (**self).is_const()
     }
 }
 
+#[derive(Debug)]
+pub enum Validator<'input, V: ValidatorTrait + 'input> {
+    Borrowed(&'input V),
+    Owned(V),
+}
 
-impl ValidatorTrait for Validator {
+impl<V: ValidatorTrait> ValidatorTrait for Validator<'input, V> {
     fn value(&self) -> u64 {
         match self {
-            Validator::Constant => 0,
-            Validator::Updatable(tag) => tag.inner.value(),
-            Validator::Js(tag) => tag.value() as u64,
-            Validator::Other(tag) => tag.value()
+            Validator::Borrowed(t) => t.value(),
+            Validator::Owned(t) => t.value(),
         }
     }
 
     fn validate(&self, snapshot: u64) -> bool {
         match self {
-            Validator::Constant => true,
-            Validator::Updatable(tag) => tag.inner.validate(snapshot),
-            Validator::Js(tag) => tag.validate(snapshot as u32),
-            Validator::Other(tag) => tag.validate(snapshot)
+            Validator::Borrowed(t) => t.validate(snapshot),
+            Validator::Owned(t) => t.validate(snapshot),
         }
     }
 
     fn is_const(&self) -> bool {
         match self {
-            Validator::Constant => true,
-            Validator::Updatable(_) => false,
-            Validator::Js(tag) => is_const_tag(tag),
-            Validator::Other(tag) => tag.is_const()
+            Validator::Borrowed(t) => t.is_const(),
+            Validator::Owned(t) => t.is_const(),
         }
     }
 }
 
-crate trait InnerTag {
-    fn value(&mut self) -> u64;
+#[derive(Debug)]
+pub struct Tag {
+    inner: Box<dyn ValidatorTrait>,
 }
 
-crate struct UpdatableTag {
-    inner: Validator
-}
-
-impl UpdatableTag {
-    crate fn new() -> UpdatableTag {
-        UpdatableTag { inner: Validator::Constant }
-    }
-
-    crate fn update(&mut self, validator: Validator) {
-        self.inner = validator;
-    }
-
-    crate fn as_validator(self) -> Validator {
-        Validator::Updatable(Box::new(self))
+impl Tag {
+    crate fn new(inner: impl ValidatorTrait + 'static) -> Tag {
+        Tag {
+            inner: Box::new(inner),
+        }
     }
 }
 
-crate fn compile(a: Validator, b: Validator) {}
+impl ValidatorTrait for Tag {
+    fn value(&self) -> u64 {
+        self.inner.value()
+    }
+}
+
+#[derive(Debug)]
+crate struct SharedTag {
+    inner: Rc<RefCell<Tag>>,
+}
+
+impl SharedTag {
+    crate fn new(inner: impl ValidatorTrait + 'static) -> SharedTag {
+        SharedTag {
+            inner: Rc::new(RefCell::new(Tag::new(inner))),
+        }
+    }
+}
+
+impl ValidatorTrait for SharedTag {
+    fn value(&self) -> u64 {
+        self.inner.borrow_mut().value()
+    }
+}
+
+crate trait InnerTag: Eq + PartialEq {
+    fn value(&self) -> u64;
+}

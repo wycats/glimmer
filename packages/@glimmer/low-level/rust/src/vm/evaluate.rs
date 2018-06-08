@@ -1,12 +1,17 @@
+use runtime::std_references::Reference;
 use ffi::println;
 use opcode_compiler::Opcode;
 use program::Program;
+use runtime::reference::ReferenceTrait;
 use runtime::std_references::ConstReference;
 use vm::VmState;
+use vm::stack::StackEntry;
+use itertools::Itertools;
 
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
+#[derive(Debug)]
 pub struct TemplateIterator {
     state: VmState,
 }
@@ -39,6 +44,10 @@ impl TemplateIterator {
     }
 
     crate fn evaluate(&mut self, op: Opcode, program: Program) -> Next {
+        debug!("Evaluating opcode: {:?}", op.debug(program.constants));
+        trace!("State {:#?}", self.state);
+        trace!("Progress {:#?}", self.state.builder.progress());
+
         match op {
             Opcode::Text(constant) => {
                 let string = program.string(constant);
@@ -73,9 +82,21 @@ impl TemplateIterator {
                 Next::Continue
             }
 
+            Opcode::CautiousAttr { name, namespace } => {
+                let name = program.string(name);
+                let stack = &mut self.state.stack;
+
+                let mut reference = stack.pop_reference();
+                let mut value = reference.value();
+                let string = value.as_string();
+
+                self.state.builder.set_attribute(name, &string);
+                Next::Continue
+            }
+
             Opcode::String(constant) => {
                 let string = program.string(constant);
-                let reference = ConstReference::string(string);
+                self.state.stack.push(StackEntry::Reference(Reference::string(string)));
                 Next::Continue
             }
 
@@ -87,12 +108,26 @@ impl TemplateIterator {
 
             Opcode::GetProperty(constant) => {
                 let string = program.string(constant);
-                let top = self.state.stack.top_mut().as_reference();
+                let top = self.state.stack.top_ref();
                 let next = top.get(string);
                 Next::Continue
             }
 
             Opcode::Exit => Next::Exit,
+
+            Opcode::Concat(count) => {
+                let mut out: Vec<&mut Reference> = Vec::with_capacity(count as usize);
+                let mut stack = (&mut self.state.stack);
+                let mut string = String::new();
+
+                for _ in 0..count {
+                    string.push_str(&(stack.pop_reference().value().as_string()));
+                }
+
+                stack.push(StackEntry::Reference(Reference::string(string)));
+
+                Next::Continue
+            }
 
             rest => {
                 panic!("Unimplemented evaluate {:#?}", rest);

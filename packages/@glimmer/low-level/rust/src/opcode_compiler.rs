@@ -266,6 +266,77 @@ crate enum Opcode {
     Exit,
 }
 
+#[derive(Debug)]
+crate enum DebugOpcode<'constants> {
+    GetVariable(u32),
+    GetProperty(&'constants str),
+    Text(&'constants str),
+    OpenElement(&'constants str),
+    StaticAttr {
+        name: &'constants str,
+        value: &'constants str,
+        namespace: Option<&'constants str>,
+    },
+    TrustingAttr {
+        name: &'constants str,
+        namespace: Option<&'constants str>,
+    },
+    CautiousAttr {
+        name: &'constants str,
+        namespace: Option<&'constants str>,
+    },
+    FlushElement,
+    CloseElement,
+    PushFrame,
+    PopFrame,
+    Primitive(Primitive),
+    String(&'constants str),
+    PrimitiveReference,
+    Concat(u32),
+    Exit,
+}
+
+impl Opcode {
+    crate fn debug(&self, constants: &'constants Constants) -> DebugOpcode<'constants> {
+        match self {
+            Opcode::GetVariable(offset) => DebugOpcode::GetVariable(*offset),
+            Opcode::GetProperty(constant) => {
+                DebugOpcode::GetProperty(constants.get_string(*constant))
+            }
+            Opcode::Text(constant) => DebugOpcode::Text(constants.get_string(*constant)),
+            Opcode::OpenElement(constant) => {
+                DebugOpcode::OpenElement(constants.get_string(*constant))
+            }
+            Opcode::StaticAttr {
+                name,
+                value,
+                namespace,
+            } => DebugOpcode::StaticAttr {
+                name: constants.get_string(*name),
+                value: constants.get_string(*value),
+                namespace: namespace.map(|n| constants.get_string(n)),
+            },
+            Opcode::TrustingAttr { name, namespace } => DebugOpcode::TrustingAttr {
+                name: constants.get_string(*name),
+                namespace: namespace.map(|n| constants.get_string(n)),
+            },
+            Opcode::CautiousAttr { name, namespace } => DebugOpcode::CautiousAttr {
+                name: constants.get_string(*name),
+                namespace: namespace.map(|n| constants.get_string(n)),
+            },
+            Opcode::FlushElement => DebugOpcode::FlushElement,
+            Opcode::CloseElement => DebugOpcode::CloseElement,
+            Opcode::PushFrame => DebugOpcode::PushFrame,
+            Opcode::PopFrame => DebugOpcode::PopFrame,
+            Opcode::Primitive(primitive) => DebugOpcode::Primitive(*primitive),
+            Opcode::String(constant) => DebugOpcode::String(constants.get_string(*constant)),
+            Opcode::PrimitiveReference => DebugOpcode::PrimitiveReference,
+            Opcode::Concat(int) => DebugOpcode::Concat(*int),
+            Opcode::Exit => DebugOpcode::Exit,
+        }
+    }
+}
+
 #[derive(Copy, Clone, Debug)]
 crate enum Primitive {
     Undefined,

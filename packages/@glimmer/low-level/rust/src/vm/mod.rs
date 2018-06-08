@@ -10,6 +10,8 @@ use vm::element::{
 };
 use vm::evaluate::TemplateIterator;
 use vm::state::VmState;
+use vm::stack::StackEntry;
+use runtime::std_references::Reference;
 
 pub mod cursor;
 pub mod element;
@@ -27,7 +29,9 @@ impl VM<'program> {
     }
 
     pub fn render(self, handle: VMHandle, root: Cursor) -> TemplateIterator {
-        let state = VmState::browser(root, handle.offset as i32);
+        let mut state = VmState::browser(root, handle.offset as i32);
+        state.push_frame();
+        state.stack.push(StackEntry::Reference(Reference::undefined()));
         TemplateIterator::new(state)
     }
 

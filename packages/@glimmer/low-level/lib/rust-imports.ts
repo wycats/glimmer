@@ -1,5 +1,6 @@
 import { Simple, Option, Opaque } from '@glimmer/interfaces';
 import { assert } from '@glimmer/util';
+import { Tag, CURRENT_TAG, CONSTANT_TAG } from '@glimmer/reference';
 
 export {};
 
@@ -39,6 +40,10 @@ class BrowserDOMTree implements DOMTree {
 
   setAttribute(element: Simple.Element, name: string, value: string): void {
     element.setAttribute(name, value);
+  }
+
+  toString(): string {
+    return "[object BrowserDOMTree]";
   }
 }
 
@@ -87,4 +92,64 @@ export function setAttribute(
 
 export function get(obj: object, key: string): Opaque {
   return obj && obj[key];
+}
+
+export function isEqual(a: Opaque, b: Opaque): boolean {
+  return a === b;
+}
+
+export function toString(a: Opaque): string {
+  return String(a);
+}
+
+export function debugElement(e: Simple.Element): string {
+  let tag = [e.tagName.toLowerCase()];
+
+  for (let i = 0; i < e.attributes.length; i++) {
+    tag.push(`${e.attributes[i].name}=${JSON.stringify(e.attributes[i].value)}`);
+  }
+
+  return `<${tag.join(" ")}>`;
+}
+
+export function debugNode(e: Simple.Node): string {
+  if (e.nodeType === 1) {
+    return debugElement(e as Simple.Element);
+  } else if (e.nodeType === 3) {
+    return `<#text ${e.nodeValue}>`;
+  } else {
+    return String(e);
+  }
+}
+
+export function tagValue(tag: Tag): number {
+  return tag.value();
+}
+
+export function tagValidate(tag: Tag, snapshot: number): boolean {
+  return tag.validate(snapshot);
+}
+
+export function tagForProperty(parent: Opaque, key: string): Tag {
+  return CURRENT_TAG;
+}
+
+export function isConst(tag: Tag): boolean {
+  return tag === CONSTANT_TAG;
+}
+
+export function innerHTML(element: Simple.Element): string {
+  if (element instanceof Element) {
+    return element.innerHTML;
+  } else {
+    throw new Error("innerHTML not supported yet on Simple.Element");
+  }
+}
+
+export function outerHTML(element: Simple.Element): string {
+  if (element instanceof Element) {
+    return element.outerHTML;
+  } else {
+    throw new Error("innerHTML not supported yet on Simple.Element");
+  }
 }

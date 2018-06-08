@@ -1,6 +1,8 @@
 use ffi as js;
 use vm::cursor::Cursor;
+use std::fmt;
 
+#[derive(Debug)]
 crate struct DOMElementBuilder {
     tree: js::DOMTree,
     delegate: Box<dyn ElementBuilderDelegate>,
@@ -25,9 +27,16 @@ impl DOMElementBuilder {
     }
 }
 
+#[derive(Debug)]
 crate struct DOMElementBuilderDelegate {
     stack: Vec<Cursor>,
     constructing: Option<js::Element>,
+}
+
+#[derive(Debug)]
+pub struct DebugProgress {
+    output: String,
+    constructing: Option<String>
 }
 
 impl DOMElementBuilderDelegate {
@@ -49,6 +58,18 @@ impl DOMElementBuilderDelegate {
 }
 
 impl ElementBuilderDelegate for DOMElementBuilderDelegate {
+    fn progress(&self) -> DebugProgress {
+        let root = &self.stack[0].element();
+        let output = js::inner_html(root);
+
+        let constructing = self.constructing.as_ref();
+
+        DebugProgress {
+            output,
+            constructing: constructing.map(|c| js::outer_html(c))
+        }
+    }
+
     fn open_element(&mut self, tree: &js::DOMTree, tag: &str) {
         let element = js::create_element(tree, tag);
         self.constructing = Some(element);
@@ -77,6 +98,10 @@ impl ElementBuilderDelegate for DOMElementBuilderDelegate {
 }
 
 impl ElementBuilderDelegate for Box<dyn ElementBuilderDelegate> {
+    fn progress(&self) -> DebugProgress {
+        (**self).progress()
+    }
+
     fn open_element(&mut self, tree: &js::DOMTree, tag: &str) {
         (**self).open_element(tree, tag)
     }
@@ -99,6 +124,10 @@ impl ElementBuilderDelegate for Box<dyn ElementBuilderDelegate> {
 }
 
 impl ElementBuilder for DOMElementBuilder {
+    fn progress(&self) -> DebugProgress {
+        self.delegate.progress()
+    }
+
     fn inner(&mut self) -> (&mut ElementBuilderDelegate, &mut js::DOMTree) {
         let delegate = &mut self.delegate;
         let tree = &mut self.tree;
@@ -107,7 +136,9 @@ impl ElementBuilder for DOMElementBuilder {
     }
 }
 
-pub trait ElementBuilder {
+pub trait ElementBuilder: fmt::Debug {
+    fn progress(&self) -> DebugProgress;
+
     fn inner(&mut self) -> (&mut ElementBuilderDelegate, &mut js::DOMTree);
 
     fn open_element(&mut self, tag: &str) {
@@ -136,7 +167,9 @@ pub trait ElementBuilder {
     }
 }
 
-pub trait ElementBuilderDelegate {
+pub trait ElementBuilderDelegate: fmt::Debug {
+    fn progress(&self) -> DebugProgress;
+
     fn open_element(&mut self, tree: &js::DOMTree, tag: &str);
     fn set_attribute(&mut self, tree: &js::DOMTree, name: &str, value: &str);
     fn flush_element(&mut self, tree: &js::DOMTree);

@@ -1,55 +1,64 @@
-use super::{Validator, ValidatorTrait, InnerTag, revision};
+use super::updatable::TagCache;
+use super::{revision, InnerTag, Tag, ValidatorTrait};
 use std::cmp::max;
 
-crate struct CachedTag {
-    last_checked: Option<u64>,
-    last_value: Option<u64>,
-    inner: Box<dyn InnerTag>
+#[derive(Debug)]
+crate struct TagsPair<First: ValidatorTrait, Second: ValidatorTrait> {
+    first: First,
+    second: Second,
+    cache: TagCache,
 }
 
-impl CachedTag {
-    crate fn new(inner: impl InnerTag + 'static) -> CachedTag {
-        CachedTag {
-            last_checked: None,
-            last_value: None,
-            inner: Box::new(inner)
-        }
-    }
-
-    crate fn into_validator(self) -> Validator {
-        Validator::Cached(Box::new(self))
-    }
-
-    crate fn value(&mut self) -> u64 {
-        match self.last_checked {
-            Some(last) if last == revision() => last,
-            _ => {
-                self.last_checked = Some(revision());
-                let value = self.inner.value();
-                self.last_value = Some(value);
-                value
-            }
+impl<First, Second> TagsPair<First, Second>
+where
+    First: ValidatorTrait,
+    Second: ValidatorTrait,
+{
+    crate fn new(first: First, second: Second) -> TagsPair<First, Second> {
+        TagsPair {
+            first,
+            second,
+            cache: TagCache::new(),
         }
     }
 }
 
-crate struct TagsPair {
-    left: Validator,
-    right: Validator
-}
+impl<First, Second> ValidatorTrait for TagsPair<First, Second>
+where
+    First: ValidatorTrait,
+    Second: ValidatorTrait,
+{
+    fn value(&self) -> u64 {
+        let TagsPair {
+            cache,
+            first,
+            second,
+        } = self;
 
-impl InnerTag for TagsPair {
-    fn value(&mut self) -> u64 {
-        max(self.left.value(), self.right.value())
+        cache.value(|| max(first.value(), second.value()))
     }
 }
 
+#[derive(Debug)]
 crate struct TagsCombinator {
-    tags: Vec<Validator>
+    tags: Vec<Tag>,
+    cache: TagCache,
 }
 
-impl InnerTag for TagsCombinator {
-    fn value(&mut self) -> u64 {
-        self.tags.iter().map(|t| t.value()).max().unwrap()
+impl TagsCombinator {
+    crate fn new(tags: Vec<Tag>) -> TagsCombinator {
+        let tags = tags.into_iter().filter(|tag| !tag.is_const()).collect();
+        TagsCombinator {
+            tags,
+            cache: TagCache::new(),
+        }
+    }
+}
+
+impl ValidatorTrait for TagsCombinator {
+    fn value(&self) -> u64 {
+        let TagsCombinator { cache, tags } = self;
+
+        cache.value(|| tags.iter().map(|i| i.value()).max().unwrap())
     }
 }

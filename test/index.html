@@ -106,6 +106,7 @@
     // });
 
     lowLevel.booted.then(() => {
+      lowLevel.init_wasm_logger("trace");
       QUnit.start();
     });
 
