@@ -1,12 +1,11 @@
 use super::reference::ReferenceTrait;
 use super::validator::combine::TagsPair;
 use super::validator::{Tag, ValidatorTrait};
-use ffi::{self, JsTag};
-use runtime::reference::VmJsValue;
-use runtime::reference::VmValue;
-use runtime::validator::updatable::UpdatableTag;
-use runtime::validator::SharedTag;
-use runtime::validator::Validator;
+
+use crate::ffi::{self, JsTag};
+use crate::runtime::reference::{VmJsValue, VmValue};
+use crate::runtime::validator::updatable::UpdatableTag;
+use crate::runtime::validator::{SharedTag, Validator};
 
 use wasm_bindgen::prelude::*;
 

@@ -5,12 +5,12 @@ use std::fmt;
 
 use wasm_bindgen;
 
-use ffi;
+use crate::ffi;
 
 // A `println!` macro that's redirected to `console.log` if debug assertions are
 // enabled.
 macro_rules! debug_println {
-    ($($t:tt)*) => (::debug::_println(&format_args!($($t)*)))
+    ($($t:tt)*) => (crate::debug::_println(&format_args!($($t)*)))
 }
 
 // Logs a header and body, with the body collapsed.
@@ -30,10 +30,10 @@ macro_rules! trace_collapsed {
 macro_rules! panic {
     () => (panic!("explicit panic"));
     ($msg:expr) => (
-        ::debug::_panic1(&($msg, file!(), line!()))
+        crate::debug::_panic1(&($msg, file!(), line!()))
     );
     ($fmt:expr, $($arg:tt)*) => (
-        ::debug::_panic2(&format_args!($fmt, $($arg)*), &(file!(), line!()))
+        crate::debug::_panic2(&format_args!($fmt, $($arg)*), &(file!(), line!()))
     );
 }
 

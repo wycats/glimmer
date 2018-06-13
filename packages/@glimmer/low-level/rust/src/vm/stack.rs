@@ -1,7 +1,6 @@
-use debug::WasmUnwrap;
-use runtime::reference::VmValue;
-use runtime::std_references::ConstReference;
-use runtime::std_references::Reference;
+use crate::debug::WasmUnwrap;
+use crate::runtime::reference::VmValue;
+use crate::runtime::std_references::{ConstReference, Reference};
 
 use std::fmt;
 use std::ops::{Deref, DerefMut};

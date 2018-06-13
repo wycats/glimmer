@@ -1,6 +1,7 @@
-use compiler::{Opcode, ProgramCompiler};
+use crate::compiler::{Opcode, ProgramCompiler};
+use crate::template::Template;
+
 use itertools::Itertools;
-use template::Template;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]

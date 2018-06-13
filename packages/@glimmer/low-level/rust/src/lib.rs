@@ -35,10 +35,10 @@ pub mod template;
 pub mod test_support;
 pub mod vm;
 
-pub use debug::init_wasm_logger;
-pub use program::VMHandle;
-pub use template::parse_template;
-pub use vm::VM;
+pub use crate::debug::init_wasm_logger;
+pub use crate::program::VMHandle;
+pub use crate::template::parse_template;
+pub use crate::vm::VM;
 
 #[wasm_bindgen]
 pub fn num_allocated() -> u32 {

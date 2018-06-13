@@ -1,5 +1,6 @@
-use ffi::println;
-use hir::*;
+use crate::ffi::println;
+use crate::hir::*;
+
 use serde_json::map::Map;
 use serde_json::Value as JsonValue;
 

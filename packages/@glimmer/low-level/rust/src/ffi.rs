@@ -1,6 +1,6 @@
 //! Definitions provided when this wasm module is instantiated by glimmer
 
-use runtime::validator::ValidatorTrait;
+use crate::runtime::validator::ValidatorTrait;
 use std::fmt;
 use std::mem::transmute;
 use wasm_bindgen::prelude::*;

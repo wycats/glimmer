@@ -1,9 +1,8 @@
-use ffi;
-use runtime::std_references::Reference;
-use runtime::validator::Validator;
-use runtime::validator::ValidatorTrait;
-use std::borrow::Cow;
+use crate::ffi;
+use crate::runtime::std_references::Reference;
+use crate::runtime::validator::{Validator, ValidatorTrait};
 
+use std::borrow::Cow;
 use std::fmt;
 use std::fmt::Debug;
 

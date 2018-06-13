@@ -1,4 +1,4 @@
-use debug::WasmUnwrap;
+use crate::debug::WasmUnwrap;
 
 #[derive(Debug)]
 pub struct Namespace(String);

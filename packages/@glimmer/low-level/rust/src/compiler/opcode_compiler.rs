@@ -1,17 +1,11 @@
 use super::builtin_blocks::{try_compile_block, BuiltinResult, CompileBlock};
-use debug::WasmUnwrap;
-use ffi::println;
-use hir::Attribute;
-use hir::Expression;
-use hir::Parameter;
-use hir::Positional;
-use hir::Statement;
-use hir::Value;
-use program::VMHandle;
-use program::{ConstantString, Constants, Program};
-use std::collections::HashMap;
-use template::Template;
+use crate::debug::WasmUnwrap;
+use crate::ffi::println;
+use crate::hir::*;
+use crate::program::{ConstantString, Constants, Program, VMHandle};
+use crate::template::Template;
 
+use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]

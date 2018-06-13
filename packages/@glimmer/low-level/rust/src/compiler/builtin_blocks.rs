@@ -1,6 +1,6 @@
 use super::opcode_compiler::{Encoder, EncoderFrame, Opcode};
-use debug::WasmUnwrap;
-use hir::{Call, InlineBlock};
+use crate::debug::WasmUnwrap;
+use crate::hir::{Call, InlineBlock};
 
 #[derive(Copy, Clone, Debug)]
 crate struct CompileBlock<'input> {

@@ -2,7 +2,8 @@ crate mod combine;
 crate mod updatable;
 
 use self::combine::TagsPair;
-use runtime::validator::combine::TagsCombinator;
+use crate::runtime::validator::combine::TagsCombinator;
+
 use std::cell::RefCell;
 use std::fmt::{self, Debug};
 use std::rc::Rc;

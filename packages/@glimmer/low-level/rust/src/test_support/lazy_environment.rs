@@ -1,16 +1,16 @@
 use super::render_result::RenderResult;
-use compiler::{ProgramCompiler, ProgramTemplate};
-use ffi;
-use program::VMHandle;
-use runtime::std_references::{JsRootReference, Reference};
-use std::rc::Rc;
-use vm::cursor::Cursor;
-use vm::element::DOMElementBuilder;
-use vm::element::DOMElementBuilderDelegate;
-use vm::evaluate::TemplateIterator;
-use vm::VM;
+
+use crate::compiler::{ProgramCompiler, ProgramTemplate};
+use crate::ffi;
+use crate::program::VMHandle;
+use crate::runtime::std_references::{JsRootReference, Reference};
+use crate::vm::cursor::Cursor;
+use crate::vm::element::{DOMElementBuilder, DOMElementBuilderDelegate};
+use crate::vm::evaluate::TemplateIterator;
+use crate::vm::VM;
 
 use std::cell::RefCell;
+use std::rc::Rc;
 
 use wasm_bindgen::prelude::*;
 

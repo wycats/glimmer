@@ -1,11 +1,10 @@
-use std::option;
-
-use ffi::println;
-use hir::Statement;
-use parse::parse;
-use program::VMHandle;
+use crate::ffi::println;
+use crate::hir::Statement;
+use crate::parse::parse;
+use crate::program::VMHandle;
 use serde_json::Value;
 
+use std::option;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]

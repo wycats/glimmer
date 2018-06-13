@@ -1,11 +1,11 @@
-use compiler::{DynamicAttr, Opcode, StaticAttr};
-use ffi;
-use itertools::Itertools;
-use program::Program;
-use runtime::reference::{ReferenceTrait, VmValue};
-use runtime::std_references::{ConditionalReference, ConstReference, Reference};
-use vm::VmState;
+use crate::compiler::{DynamicAttr, Opcode, StaticAttr};
+use crate::ffi;
+use crate::program::Program;
+use crate::runtime::reference::{ReferenceTrait, VmValue};
+use crate::runtime::std_references::{ConditionalReference, ConstReference, Reference};
+use crate::vm::VmState;
 
+use itertools::Itertools;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]

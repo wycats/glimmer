@@ -1,12 +1,12 @@
-use debug::WasmUnwrap;
-use ffi as js;
-use vm::cursor::Cursor;
+use crate::debug::WasmUnwrap;
+use crate::ffi;
+use crate::vm::cursor::Cursor;
 
 use std::fmt;
 
 #[derive(Debug)]
 crate struct DOMElementBuilder {
-    tree: js::DOMTree,
+    tree: ffi::DOMTree,
     delegate: Box<dyn ElementBuilderDelegate>,
 }
 
@@ -23,7 +23,7 @@ impl DOMElementBuilder {
 
     crate fn new(delegate: impl ElementBuilderDelegate + 'static) -> DOMElementBuilder {
         DOMElementBuilder {
-            tree: js::browser_dom_tree(),
+            tree: ffi::browser_dom_tree(),
             delegate: Box::new(delegate),
         }
     }
@@ -32,7 +32,7 @@ impl DOMElementBuilder {
 #[derive(Debug)]
 crate struct DOMElementBuilderDelegate {
     stack: Vec<Cursor>,
-    constructing: Option<js::Element>,
+    constructing: Option<ffi::Element>,
 }
 
 #[derive(Debug)]
@@ -54,7 +54,7 @@ impl DOMElementBuilderDelegate {
         (top, second)
     }
 
-    fn constructing(&self) -> &js::Element {
+    fn constructing(&self) -> &ffi::Element {
         self.constructing
             .as_ref()
             .wasm_expect("Expected to be constructing an element, but wasn't")
@@ -64,38 +64,38 @@ impl DOMElementBuilderDelegate {
 impl ElementBuilderDelegate for DOMElementBuilderDelegate {
     fn progress(&self) -> DebugProgress {
         let root = &self.stack[0].element();
-        let output = js::inner_html(root);
+        let output = ffi::inner_html(root);
 
         let constructing = self.constructing.as_ref();
 
         DebugProgress {
             output,
-            constructing: constructing.map(|c| js::outer_html(c)),
+            constructing: constructing.map(|c| ffi::outer_html(c)),
         }
     }
 
-    fn open_element(&mut self, tree: &js::DOMTree, tag: &str) {
-        let element = js::create_element(tree, tag);
+    fn open_element(&mut self, tree: &ffi::DOMTree, tag: &str) {
+        let element = ffi::create_element(tree, tag);
         self.constructing = Some(element);
     }
 
-    fn set_attribute(&mut self, tree: &js::DOMTree, name: &str, value: &str) {
-        js::set_attribute(tree, self.constructing(), name, value);
+    fn set_attribute(&mut self, tree: &ffi::DOMTree, name: &str, value: &str) {
+        ffi::set_attribute(tree, self.constructing(), name, value);
     }
 
-    fn flush_element(&mut self, tree: &js::DOMTree) {
+    fn flush_element(&mut self, tree: &ffi::DOMTree) {
         let constructing = self.constructing.take().unwrap();
         self.stack.push(Cursor::from_parent(constructing));
         let (constructing, parent) = self.last_two();
         parent.append_element(tree, constructing.element());
     }
 
-    fn close_element(&mut self, tree: &js::DOMTree) {
+    fn close_element(&mut self, tree: &ffi::DOMTree) {
         self.stack.pop();
     }
 
-    fn append_text(&mut self, tree: &js::DOMTree, data: &str) {
-        let text = js::create_text_node(tree, data);
+    fn append_text(&mut self, tree: &ffi::DOMTree, data: &str) {
+        let text = ffi::create_text_node(tree, data);
         let top = self.append_top();
         top.append_text(tree, &text)
     }
@@ -106,23 +106,23 @@ impl ElementBuilderDelegate for Box<dyn ElementBuilderDelegate> {
         (**self).progress()
     }
 
-    fn open_element(&mut self, tree: &js::DOMTree, tag: &str) {
+    fn open_element(&mut self, tree: &ffi::DOMTree, tag: &str) {
         (**self).open_element(tree, tag)
     }
 
-    fn set_attribute(&mut self, tree: &js::DOMTree, name: &str, value: &str) {
+    fn set_attribute(&mut self, tree: &ffi::DOMTree, name: &str, value: &str) {
         (**self).set_attribute(tree, name, value)
     }
 
-    fn flush_element(&mut self, tree: &js::DOMTree) {
+    fn flush_element(&mut self, tree: &ffi::DOMTree) {
         (**self).flush_element(tree)
     }
 
-    fn close_element(&mut self, tree: &js::DOMTree) {
+    fn close_element(&mut self, tree: &ffi::DOMTree) {
         (**self).close_element(tree)
     }
 
-    fn append_text(&mut self, tree: &js::DOMTree, tag: &str) {
+    fn append_text(&mut self, tree: &ffi::DOMTree, tag: &str) {
         (**self).append_text(tree, tag)
     }
 }
@@ -132,7 +132,7 @@ impl ElementBuilder for DOMElementBuilder {
         self.delegate.progress()
     }
 
-    fn inner(&mut self) -> (&mut ElementBuilderDelegate, &mut js::DOMTree) {
+    fn inner(&mut self) -> (&mut ElementBuilderDelegate, &mut ffi::DOMTree) {
         let delegate = &mut self.delegate;
         let tree = &mut self.tree;
 
@@ -143,7 +143,7 @@ impl ElementBuilder for DOMElementBuilder {
 pub trait ElementBuilder: fmt::Debug {
     fn progress(&self) -> DebugProgress;
 
-    fn inner(&mut self) -> (&mut ElementBuilderDelegate, &mut js::DOMTree);
+    fn inner(&mut self) -> (&mut ElementBuilderDelegate, &mut ffi::DOMTree);
 
     fn open_element(&mut self, tag: &str) {
         let (delegate, tree) = self.inner();
@@ -174,9 +174,9 @@ pub trait ElementBuilder: fmt::Debug {
 pub trait ElementBuilderDelegate: fmt::Debug {
     fn progress(&self) -> DebugProgress;
 
-    fn open_element(&mut self, tree: &js::DOMTree, tag: &str);
-    fn set_attribute(&mut self, tree: &js::DOMTree, name: &str, value: &str);
-    fn flush_element(&mut self, tree: &js::DOMTree);
-    fn close_element(&mut self, tree: &js::DOMTree);
-    fn append_text(&mut self, tree: &js::DOMTree, tag: &str);
+    fn open_element(&mut self, tree: &ffi::DOMTree, tag: &str);
+    fn set_attribute(&mut self, tree: &ffi::DOMTree, name: &str, value: &str);
+    fn flush_element(&mut self, tree: &ffi::DOMTree);
+    fn close_element(&mut self, tree: &ffi::DOMTree);
+    fn append_text(&mut self, tree: &ffi::DOMTree, tag: &str);
 }

@@ -1,8 +1,7 @@
-use runtime::reference::VmValue;
-use vm::cursor::Cursor;
-use vm::element::DOMElementBuilder;
-use vm::element::ElementBuilder;
-use vm::stack::Stack;
+use crate::runtime::reference::VmValue;
+use crate::vm::cursor::Cursor;
+use crate::vm::element::{DOMElementBuilder, ElementBuilder};
+use crate::vm::stack::Stack;
 
 use std::fmt;
 
