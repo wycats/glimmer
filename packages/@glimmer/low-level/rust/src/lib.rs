@@ -1,3 +1,4 @@
+#![feature(rust_2018_preview)]
 #![feature(proc_macro, wasm_custom_section, wasm_import_module, extern_prelude)]
 #![feature(crate_visibility_modifier)]
 #![feature(try_trait)]
