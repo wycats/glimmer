@@ -1,11 +1,8 @@
 crate mod combine;
 crate mod updatable;
 
-use self::combine::TagsPair;
-use crate::runtime::validator::combine::TagsCombinator;
-
 use std::cell::RefCell;
-use std::fmt::{self, Debug};
+use std::fmt::Debug;
 use std::rc::Rc;
 
 pub static INITIAL: u64 = 1;

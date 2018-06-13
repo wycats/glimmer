@@ -1,11 +1,9 @@
 use crate::compiler::{DynamicAttr, Opcode, StaticAttr};
-use crate::ffi;
 use crate::program::Program;
-use crate::runtime::reference::{ReferenceTrait, VmValue};
-use crate::runtime::std_references::{ConditionalReference, ConstReference, Reference};
+use crate::runtime::reference::ReferenceTrait;
+use crate::runtime::std_references::Reference;
 use crate::vm::VmState;
 
-use itertools::Itertools;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -54,8 +52,8 @@ impl TemplateIterator {
             }
 
             Opcode::AppendText => {
-                let mut reference = self.state.stack.pop_reference();
-                let mut value = reference.value();
+                let reference = self.state.stack.pop_reference();
+                let value = reference.value();
                 let string = value.as_string();
                 self.state.builder.append_text(&string);
 
@@ -71,7 +69,7 @@ impl TemplateIterator {
             Opcode::StaticAttr(StaticAttr {
                 name,
                 value,
-                namespace,
+                namespace: _,
             }) => {
                 let name = program.string(name);
                 let value = program.string(value);
@@ -99,12 +97,12 @@ impl TemplateIterator {
                 Next::Continue
             }
 
-            Opcode::CautiousAttr(DynamicAttr { name, namespace }) => {
+            Opcode::CautiousAttr(DynamicAttr { name, namespace: _ }) => {
                 let name = program.string(name);
                 let stack = &mut self.state.stack;
 
-                let mut reference = stack.pop_reference();
-                let mut value = reference.value();
+                let reference = stack.pop_reference();
+                let value = reference.value();
                 let string = value.as_string();
 
                 self.state.builder.set_attribute(name, &string);
@@ -133,12 +131,11 @@ impl TemplateIterator {
             Opcode::Exit => Next::Exit,
 
             Opcode::Concat(count) => {
-                let mut out: Vec<&mut Reference> = Vec::with_capacity(count as usize);
-                let mut stack = (&mut self.state.stack);
+                let stack = &mut self.state.stack;
                 let mut strings = Vec::new();
 
                 for _ in 0..count {
-                    let mut reference = stack.pop_reference();
+                    let reference = stack.pop_reference();
                     let value = reference.value();
                     let string = value.as_string();
                     strings.push(string.to_string());

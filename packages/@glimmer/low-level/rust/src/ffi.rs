@@ -7,9 +7,6 @@ use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 extern "C" {
-    #[wasm_bindgen(js_namespace = console, js_name = log)]
-    crate fn console_log(s: &str);
-
     #[wasm_bindgen(js_namespace = console, js_name = debug)]
     crate fn console_debug(s: &str);
 

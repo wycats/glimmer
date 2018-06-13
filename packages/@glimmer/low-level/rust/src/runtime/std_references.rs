@@ -1,18 +1,13 @@
 use super::reference::ReferenceTrait;
-use super::validator::combine::TagsPair;
 use super::validator::{Tag, ValidatorTrait};
 
 use crate::ffi::{self, JsTag};
 use crate::runtime::reference::{VmJsValue, VmValue};
-use crate::runtime::validator::updatable::UpdatableTag;
 use crate::runtime::validator::{SharedTag, Validator};
 
 use wasm_bindgen::prelude::*;
 
-use std::cell::RefCell;
 use std::fmt::{self, Debug};
-use std::ops::Deref;
-use std::rc::Rc;
 
 #[derive(Debug)]
 crate struct ConstValidator;
@@ -22,7 +17,7 @@ impl ValidatorTrait for ConstValidator {
         0
     }
 
-    fn validate(&self, snapshot: u64) -> bool {
+    fn validate(&self, _snapshot: u64) -> bool {
         true
     }
 
@@ -47,16 +42,12 @@ impl ReferenceTrait for ConstReference {
         self.inner.clone()
     }
 
-    fn get(&self, key: &str) -> Reference {
+    fn get(&self, _key: &str) -> Reference {
         Reference::undefined()
     }
 }
 
 impl ConstReference {
-    crate fn new(value: VmValue<'static>) -> ConstReference {
-        ConstReference { inner: value }
-    }
-
     crate fn string(value: impl Into<String>) -> ConstReference {
         ConstReference {
             inner: VmValue::String(value.into()),
@@ -206,10 +197,10 @@ impl JsReference for JsNestedReference {
     }
 
     fn get_tag(&'input self) -> Validator<'input, SharedTag> {
-        let parent_tag = self.parent.get_tag();
+        let _parent_tag = self.parent.get_tag();
         let parent = self.parent.value();
 
-        let new_tag = ffi::tag_for_property(&parent, &self.key);
+        let _new_tag = ffi::tag_for_property(&parent, &self.key);
 
         panic!("Unimplemented JsNestedReference#get_tag({:?})", self.key)
     }
@@ -226,12 +217,14 @@ impl JsReference for JsNestedReference {
     }
 }
 
+#[allow(unused)]
 #[derive(Debug)]
 crate struct ConditionalReference {
     inner: Reference,
 }
 
 impl ConditionalReference {
+    #[allow(unused)]
     crate fn new(inner: Reference) -> ConditionalReference {
         ConditionalReference { inner }
     }
@@ -274,7 +267,7 @@ impl ReferenceTrait for Reference {
 
     fn get_tag(&self) -> Validator<SharedTag> {
         match self {
-            Reference::Constant(constant) => Validator::Owned(SharedTag::new(ConstValidator)),
+            Reference::Constant(_) => Validator::Owned(SharedTag::new(ConstValidator)),
             Reference::JsReference(js) => js.get_tag(),
             Reference::Other(other) => other.get_tag(),
         }
@@ -305,6 +298,7 @@ impl Reference {
         Reference::Constant(ConstReference::string(s.into()))
     }
 
+    #[allow(unused)]
     crate fn other(r: impl ReferenceTrait<Validator = SharedTag> + 'static) -> Reference {
         Reference::Other(Box::new(r))
     }

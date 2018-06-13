@@ -1,10 +1,6 @@
-use super::InnerTag;
 use super::INITIAL;
 use super::{revision, ValidatorTrait};
-use std::cell::RefCell;
 use std::cmp::max;
-use std::rc::Rc;
-use std::sync::atomic::AtomicBool;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 #[derive(Debug)]
@@ -33,6 +29,7 @@ impl TagCache {
     }
 }
 
+#[allow(unused)]
 #[derive(Debug)]
 crate struct UpdatableTag<Inner: ValidatorTrait> {
     inner: Inner,
@@ -41,6 +38,7 @@ crate struct UpdatableTag<Inner: ValidatorTrait> {
 }
 
 impl<Inner: ValidatorTrait> UpdatableTag<Inner> {
+    #[allow(unused)]
     crate fn new(tag: Inner) -> UpdatableTag<Inner> {
         UpdatableTag {
             inner: tag,
@@ -49,6 +47,7 @@ impl<Inner: ValidatorTrait> UpdatableTag<Inner> {
         }
     }
 
+    #[allow(unused)]
     crate fn update(&mut self, tag: Inner) {
         self.inner = tag;
     }

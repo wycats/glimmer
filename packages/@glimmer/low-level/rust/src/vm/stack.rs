@@ -1,9 +1,7 @@
 use crate::debug::WasmUnwrap;
-use crate::runtime::reference::VmValue;
-use crate::runtime::std_references::{ConstReference, Reference};
+use crate::runtime::std_references::Reference;
 
 use std::fmt;
-use std::ops::{Deref, DerefMut};
 
 #[derive(Debug, new)]
 crate struct StackFrame {
@@ -25,7 +23,12 @@ impl StackFrame {
 }
 
 enum StackEntry {
-    Pointer { frame: usize, offset: usize },
+    Pointer {
+        frame: usize,
+        offset: usize,
+    },
+
+    #[allow(unused)]
     ByValue(StackByValue),
     ByReference(StackByReference),
 }
@@ -41,7 +44,7 @@ impl fmt::Debug for StackEntry {
             },
             StackEntry::ByReference(by_reference) => match by_reference {
                 StackByReference::String(string) => write!(f, "{:?}", string),
-                StackByReference::Reference(reference) => write!(f, "Reference"),
+                StackByReference::Reference(_) => write!(f, "Reference"),
             },
         }
     }
@@ -66,6 +69,7 @@ impl OwnedStackEntry<'stack> {
     }
 }
 
+#[allow(unused)]
 #[derive(Debug, Copy, Clone)]
 enum StackByValue {
     Integer(i64),
@@ -76,6 +80,8 @@ enum StackByValue {
 #[derive(Debug)]
 enum StackByReference {
     Reference(Reference),
+
+    #[allow(unused)]
     String(String),
 }
 
@@ -99,11 +105,13 @@ impl Stack {
         frame.ra
     }
 
+    #[allow(unused)]
     crate fn push_integer(&mut self, integer: i64) {
         self.top_frame()
             .push(StackEntry::ByValue(StackByValue::Integer(integer)))
     }
 
+    #[allow(unused)]
     crate fn pop_integer(&mut self) -> i64 {
         match self.top_frame().pop() {
             StackEntry::ByValue(StackByValue::Integer(integer)) => integer,
@@ -112,11 +120,13 @@ impl Stack {
         }
     }
 
+    #[allow(unused)]
     crate fn push_float(&mut self, float: f64) {
         self.top_frame()
             .push(StackEntry::ByValue(StackByValue::Float(float)))
     }
 
+    #[allow(unused)]
     crate fn pop_float(&mut self) -> f64 {
         match self.top_frame().pop() {
             StackEntry::ByValue(StackByValue::Float(float)) => float,
@@ -125,11 +135,13 @@ impl Stack {
         }
     }
 
+    #[allow(unused)]
     crate fn push_boolean(&mut self, boolean: bool) {
         self.top_frame()
             .push(StackEntry::ByValue(StackByValue::Boolean(boolean)))
     }
 
+    #[allow(unused)]
     crate fn pop_boolean(&mut self) -> bool {
         match self.top_frame().pop() {
             StackEntry::ByValue(StackByValue::Boolean(boolean)) => boolean,
@@ -138,11 +150,13 @@ impl Stack {
         }
     }
 
+    #[allow(unused)]
     crate fn push_string(&mut self, string: String) {
         self.top_frame()
             .push(StackEntry::ByReference(StackByReference::String(string)))
     }
 
+    #[allow(unused)]
     crate fn pop_string(&mut self) -> String {
         match self.top_frame().pop() {
             StackEntry::ByReference(StackByReference::String(string)) => string,
@@ -176,6 +190,7 @@ impl Stack {
         });
     }
 
+    #[allow(unused)]
     crate fn push_current_pointer(&mut self, offset: usize) {
         let frame = self.frames.len() - 1;
         let last = self.top_frame();

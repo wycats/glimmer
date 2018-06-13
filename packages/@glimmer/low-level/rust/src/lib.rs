@@ -6,18 +6,14 @@
 #![feature(integer_atomics)]
 #![feature(nll)]
 #![feature(splice)]
-#![allow(unused)]
 
 #[macro_use]
 extern crate log;
 extern crate serde_json;
 #[macro_use]
 extern crate derive_new;
-extern crate wasm_bindgen;
-#[macro_use]
-extern crate lazy_static;
 extern crate itertools;
-extern crate strum;
+extern crate wasm_bindgen;
 #[macro_use]
 extern crate strum_macros;
 

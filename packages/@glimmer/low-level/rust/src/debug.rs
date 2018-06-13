@@ -1,6 +1,6 @@
 #![allow(dead_code, unused_macros)]
 
-use log::{self, Level, Log, Metadata, Record, SetLoggerError};
+use log::{self, Level, Log, Metadata, Record};
 use std::fmt;
 
 use wasm_bindgen;

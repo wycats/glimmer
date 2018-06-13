@@ -50,7 +50,7 @@ impl DOMElementBuilderDelegate {
 
     fn last_two(&mut self) -> (&mut Cursor, &mut Cursor) {
         let (top, rest) = self.stack.split_last_mut().unwrap();
-        let (second, rest) = rest.split_last_mut().unwrap();
+        let (second, _) = rest.split_last_mut().unwrap();
         (top, second)
     }
 
@@ -90,7 +90,7 @@ impl ElementBuilderDelegate for DOMElementBuilderDelegate {
         parent.append_element(tree, constructing.element());
     }
 
-    fn close_element(&mut self, tree: &ffi::DOMTree) {
+    fn close_element(&mut self, _tree: &ffi::DOMTree) {
         self.stack.pop();
     }
 

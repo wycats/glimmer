@@ -1,6 +1,5 @@
 use super::builtin_blocks::{try_compile_block, BuiltinResult, CompileBlock};
 use crate::debug::WasmUnwrap;
-use crate::ffi::println;
 use crate::hir::*;
 use crate::program::{ConstantString, Constants, Program, VMHandle};
 use crate::template::Template;
@@ -76,6 +75,7 @@ crate struct EncoderFrame<'encoder> {
     targets: Vec<LabelTarget>,
 }
 
+#[allow(unused)]
 impl EncoderFrame<'encoder> {
     crate fn new(encoder: &mut Encoder) -> EncoderFrame<'_> {
         EncoderFrame {
@@ -181,7 +181,7 @@ impl EncoderFrame<'encoder> {
             }
             Statement::Append {
                 expression,
-                trusting,
+                trusting: _,
             } => {
                 self.compile_expression(expression);
                 self.buffer.push(Opcode::AppendText);
@@ -223,7 +223,7 @@ impl EncoderFrame<'encoder> {
     fn compile_parameter(&mut self, p: &Parameter) {
         match p {
             Parameter::Attribute(a) => self.compile_attribute(a),
-            Parameter::Argument(a) => unimplemented!(),
+            Parameter::Argument(_) => unimplemented!(),
         }
     }
 
@@ -232,7 +232,7 @@ impl EncoderFrame<'encoder> {
             Attribute::StaticAttr {
                 name,
                 value,
-                namespace,
+                namespace: _,
             } => {
                 self.buffer.push(Opcode::StaticAttr(StaticAttr {
                     name: self.encoder.constants.add_string(&name),
@@ -244,7 +244,7 @@ impl EncoderFrame<'encoder> {
             Attribute::DynamicAttr {
                 name,
                 value,
-                namespace,
+                namespace: _,
             } => {
                 self.compile_expression(value);
                 self.buffer.push(Opcode::CautiousAttr(DynamicAttr {
@@ -257,10 +257,6 @@ impl EncoderFrame<'encoder> {
                 panic!("Unimplemented compile attribute {:?}", rest);
             }
         }
-    }
-
-    fn exit(&mut self) {
-        self.buffer.push(Opcode::Exit);
     }
 }
 
@@ -285,16 +281,8 @@ impl Encoder {
         }
     }
 
-    fn next_handle(&self) -> VMHandle {
-        VMHandle::new(self.buffer.len())
-    }
-
     crate fn with_frame(&mut self, with_frame: impl FnOnce(&mut EncoderFrame)) -> usize {
         EncoderFrame::new(self).with_frame(with_frame)
-    }
-
-    crate fn buffer(&mut self) -> &mut Vec<Opcode> {
-        &mut self.buffer
     }
 }
 
@@ -375,10 +363,6 @@ impl ExpressionEncoder<'compiler> {
     fn push_primitive(&mut self, primitive: Primitive) {
         self.buffer.push(Opcode::Primitive(primitive));
     }
-
-    fn primitive_reference(&mut self) {
-        self.buffer.push(Opcode::PrimitiveReference);
-    }
 }
 
 #[wasm_bindgen]
@@ -419,6 +403,8 @@ crate enum Opcode {
     AppendText,
     OpenElement(ConstantString),
     StaticAttr(StaticAttr),
+
+    #[allow(unused)]
     TrustingAttr(DynamicAttr),
     CautiousAttr(DynamicAttr),
     FlushElement,
@@ -428,13 +414,20 @@ crate enum Opcode {
     ToBoolean,
     Primitive(Primitive),
     String(ConstantString),
+
+    #[allow(unused)]
     PrimitiveReference,
     Concat(usize),
+
+    #[allow(unused)]
     Jump(RelativeJump),
     Call(usize),
+
+    #[allow(unused)]
     Exit,
 }
 
+#[allow(unused)]
 #[derive(Copy, Clone, Debug)]
 crate enum RelativeJump {
     Goto(isize),
@@ -524,8 +517,12 @@ impl Opcode {
 #[derive(Copy, Clone, Debug)]
 crate enum Primitive {
     Undefined,
+
+    #[allow(unused)]
     Null,
+    #[allow(unused)]
     True,
+    #[allow(unused)]
     False,
     Integer(i64),
     Float(f64),

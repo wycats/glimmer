@@ -30,21 +30,6 @@ pub enum VmValue<'input> {
 }
 
 impl VmValue<'input> {
-    crate fn borrow(&'narrow self) -> VmValue<'narrow> {
-        match self {
-            VmValue::JsValue(value) => VmValue::JsValue(value.clone()),
-            VmValue::Integer(int) => VmValue::Integer(*int),
-            VmValue::Float(float) => VmValue::Float(*float),
-            VmValue::Boolean(boolean) => VmValue::Boolean(*boolean),
-            VmValue::String(string) => VmValue::Str(&string),
-            VmValue::Str(string) => VmValue::Str(string),
-            VmValue::Null => VmValue::Null,
-            VmValue::Undefined => VmValue::Undefined,
-        }
-    }
-}
-
-impl VmValue<'input> {
     // Used to turn a reference on the stack into a string. Very loose; might be worth
     // tightening up to assert that we only get expected values in this situation.
     crate fn as_string(&self) -> Cow<str> {
@@ -67,7 +52,7 @@ pub trait ReferenceTrait: Debug {
     fn get_tag(&'input self) -> Validator<'input, Self::Validator>;
     fn value(&self) -> VmValue;
 
-    fn get(&self, key: &str) -> Reference {
+    fn get(&self, _key: &str) -> Reference {
         Reference::undefined()
     }
 }

@@ -1,4 +1,4 @@
-use super::opcode_compiler::{Encoder, EncoderFrame, Opcode};
+use super::opcode_compiler::{EncoderFrame, Opcode};
 use crate::debug::WasmUnwrap;
 use crate::hir::{Call, InlineBlock};
 

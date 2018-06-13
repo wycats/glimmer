@@ -1,4 +1,3 @@
-use crate::runtime::reference::VmValue;
 use crate::vm::cursor::Cursor;
 use crate::vm::element::{DOMElementBuilder, ElementBuilder};
 use crate::vm::stack::Stack;
@@ -92,7 +91,7 @@ impl VmState {
         true
     }
 
-    crate fn push_frame(&mut self, count: usize) {
+    crate fn push_frame(&mut self, _count: usize) {
         self.stack.push_frame(self.registers.ra);
     }
 }

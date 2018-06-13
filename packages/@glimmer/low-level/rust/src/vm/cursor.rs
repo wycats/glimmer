@@ -1,39 +1,6 @@
 use crate::ffi;
-use crate::program::Program;
 
 use wasm_bindgen::prelude::*;
-
-fn print(value: impl Into<String>) {
-    println!("{}", value.into())
-}
-
-fn main() {
-    print("hello");
-    print("hello".to_string());
-    print(Q::new(12))
-}
-
-struct Q {
-    inner: u64,
-}
-
-impl Q {
-    pub fn new(value: u64) -> Q {
-        Q { inner: value }
-    }
-}
-
-impl Into<String> for Q {
-    fn into(self) -> String {
-        "Q".to_string()
-    }
-}
-
-impl Into<u64> for Q {
-    fn into(self) -> u64 {
-        32
-    }
-}
 
 #[wasm_bindgen]
 #[derive(Debug)]
@@ -68,6 +35,7 @@ impl Cursor {
         }
     }
 
+    #[allow(unused)]
     crate fn append_node(&self, tree: &ffi::DOMTree, node: &ffi::Node) {
         match &self.next {
             None => ffi::append(tree, &self.parent, node),

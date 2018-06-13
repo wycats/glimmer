@@ -1,16 +1,8 @@
-use crate::compiler::Opcode;
 use crate::program::{Program, VMHandle};
 use crate::runtime::std_references::Reference;
 use crate::vm::cursor::Cursor;
-use crate::vm::element::{
-    DOMElementBuilder, DOMElementBuilderDelegate, ElementBuilder, ElementBuilderDelegate,
-};
 use crate::vm::evaluate::TemplateIterator;
-use crate::vm::stack::Stack;
 use crate::vm::state::VmState;
-
-use std::rc::Rc;
-use wasm_bindgen::prelude::*;
 
 pub mod cursor;
 pub mod element;

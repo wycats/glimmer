@@ -1,44 +1,7 @@
 use super::updatable::TagCache;
-use super::{revision, InnerTag, Tag, ValidatorTrait};
-use std::cmp::max;
+use super::{Tag, ValidatorTrait};
 
-#[derive(Debug)]
-crate struct TagsPair<First: ValidatorTrait, Second: ValidatorTrait> {
-    first: First,
-    second: Second,
-    cache: TagCache,
-}
-
-impl<First, Second> TagsPair<First, Second>
-where
-    First: ValidatorTrait,
-    Second: ValidatorTrait,
-{
-    crate fn new(first: First, second: Second) -> TagsPair<First, Second> {
-        TagsPair {
-            first,
-            second,
-            cache: TagCache::new(),
-        }
-    }
-}
-
-impl<First, Second> ValidatorTrait for TagsPair<First, Second>
-where
-    First: ValidatorTrait,
-    Second: ValidatorTrait,
-{
-    fn value(&self) -> u64 {
-        let TagsPair {
-            cache,
-            first,
-            second,
-        } = self;
-
-        cache.value(|| max(first.value(), second.value()))
-    }
-}
-
+#[allow(unused)]
 #[derive(Debug)]
 crate struct TagsCombinator {
     tags: Vec<Tag>,
@@ -46,6 +9,7 @@ crate struct TagsCombinator {
 }
 
 impl TagsCombinator {
+    #[allow(unused)]
     crate fn new(tags: Vec<Tag>) -> TagsCombinator {
         let tags = tags.into_iter().filter(|tag| !tag.is_const()).collect();
         TagsCombinator {

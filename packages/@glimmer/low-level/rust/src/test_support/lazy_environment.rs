@@ -5,7 +5,6 @@ use crate::ffi;
 use crate::program::VMHandle;
 use crate::runtime::std_references::{JsRootReference, Reference};
 use crate::vm::cursor::Cursor;
-use crate::vm::element::{DOMElementBuilder, DOMElementBuilderDelegate};
 use crate::vm::evaluate::TemplateIterator;
 use crate::vm::VM;
 
@@ -35,7 +34,7 @@ impl InnerLazyTestEnvironment {
         object: JsValue,
     ) -> TemplateIterator {
         let program = self.compiler.as_program();
-        let mut vm = VM::browser(program);
+        let vm = VM::browser(program);
         info!("{}", ffi::stringify(&object));
         let reference = JsRootReference::new(object);
 

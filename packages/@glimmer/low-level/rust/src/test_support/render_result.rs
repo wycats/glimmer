@@ -1,5 +1,4 @@
 use super::lazy_environment::LazyTestEnvironment;
-use std::rc::Rc;
 
 use wasm_bindgen::prelude::*;
 

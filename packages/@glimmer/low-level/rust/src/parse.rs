@@ -1,4 +1,3 @@
-use crate::ffi::println;
 use crate::hir::*;
 
 use serde_json::map::Map;
@@ -76,7 +75,7 @@ fn parse_path(path: &JsonValue) -> PathExpression {
 }
 
 fn parse_block(statement: &JsonValue) -> Option<InlineBlock> {
-    if (statement.is_null()) {
+    if statement.is_null() {
         None
     } else {
         let object = statement.assert_object();
@@ -112,7 +111,7 @@ fn parse_named(named: &JsonValue) -> Option<Named> {
     }
 
     let array = named.assert_array();
-    let keys = named[0].assert_str_array();
+    let keys = array[0].assert_str_array();
 
     if keys.len() == 0 {
         return None;

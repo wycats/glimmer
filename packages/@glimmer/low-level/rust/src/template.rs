@@ -1,4 +1,3 @@
-use crate::ffi::println;
 use crate::hir::Statement;
 use crate::parse::parse;
 use crate::program::VMHandle;
@@ -32,10 +31,6 @@ impl Template {
         trace_collapsed!("Parsing template", format!("{:#?}", statements));
         let parsed = parse(statements);
         Ok(Template { statements: parsed })
-    }
-
-    crate fn statements(&self) -> &[Statement] {
-        &self.statements[..]
     }
 }
 
