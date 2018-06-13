@@ -1,11 +1,11 @@
-use std::borrow::Cow;
+use ffi;
 use runtime::std_references::Reference;
 use runtime::validator::Validator;
 use runtime::validator::ValidatorTrait;
-use ffi;
+use std::borrow::Cow;
 
-use std::fmt::Debug;
 use std::fmt;
+use std::fmt::Debug;
 
 use wasm_bindgen::prelude::*;
 
@@ -65,8 +65,8 @@ impl VmValue<'input> {
 pub trait ReferenceTrait: Debug {
     type Validator: ValidatorTrait;
 
-    fn get_tag(&'input mut self) -> Validator<'input, Self::Validator>;
-    fn value(&mut self) -> VmValue;
+    fn get_tag(&'input self) -> Validator<'input, Self::Validator>;
+    fn value(&self) -> VmValue;
 
     fn get(&self, key: &str) -> Reference {
         Reference::undefined()

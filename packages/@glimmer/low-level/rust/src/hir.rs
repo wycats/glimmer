@@ -1,3 +1,5 @@
+use debug::WasmUnwrap;
+
 #[derive(Debug)]
 pub struct Namespace(String);
 
@@ -25,8 +27,8 @@ pub struct Positional {
 
 #[derive(Debug)]
 pub struct Named {
-    keys: Vec<String>,
-    values: Vec<Expression>,
+    crate keys: Vec<String>,
+    crate values: Vec<Expression>,
 }
 
 #[derive(Debug)]
@@ -54,9 +56,17 @@ pub enum Value {
 
 #[derive(Debug)]
 pub struct Call {
-    name: String,
-    positional: Positional,
-    named: Named,
+    crate name: String,
+    crate positional: Option<Positional>,
+    crate named: Option<Named>,
+}
+
+impl Call {
+    crate fn assert_positional(&self) -> &Positional {
+        self.positional
+            .as_ref()
+            .wasm_expect("Expected call to have positional arguments, but it had none")
+    }
 }
 
 #[derive(Debug)]
@@ -64,7 +74,7 @@ pub struct YieldTo {
     symbol: u32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Display)]
 pub enum Statement {
     Text(String),
     Append {
@@ -108,7 +118,10 @@ pub enum Statement {
 }
 
 #[derive(Debug)]
-pub struct InlineBlock;
+pub struct InlineBlock {
+    crate statements: Vec<Statement>,
+    crate parameters: Vec<u64>,
+}
 
 #[derive(Debug)]
 pub enum Attribute {

@@ -1,5 +1,7 @@
+use debug::WasmUnwrap;
 use ffi as js;
 use vm::cursor::Cursor;
+
 use std::fmt;
 
 #[derive(Debug)]
@@ -36,7 +38,7 @@ crate struct DOMElementBuilderDelegate {
 #[derive(Debug)]
 pub struct DebugProgress {
     output: String,
-    constructing: Option<String>
+    constructing: Option<String>,
 }
 
 impl DOMElementBuilderDelegate {
@@ -53,7 +55,9 @@ impl DOMElementBuilderDelegate {
     }
 
     fn constructing(&self) -> &js::Element {
-        self.constructing.as_ref().unwrap()
+        self.constructing
+            .as_ref()
+            .wasm_expect("Expected to be constructing an element, but wasn't")
     }
 }
 
@@ -66,7 +70,7 @@ impl ElementBuilderDelegate for DOMElementBuilderDelegate {
 
         DebugProgress {
             output,
-            constructing: constructing.map(|c| js::outer_html(c))
+            constructing: constructing.map(|c| js::outer_html(c)),
         }
     }
 

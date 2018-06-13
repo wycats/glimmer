@@ -91,6 +91,7 @@ export function setAttribute(
 }
 
 export function get(obj: object, key: string): Opaque {
+  console.log(obj, key);
   return obj && obj[key];
 }
 
@@ -99,7 +100,15 @@ export function isEqual(a: Opaque, b: Opaque): boolean {
 }
 
 export function toString(a: Opaque): string {
-  return String(a);
+  try {
+    return String(a);
+  } catch(_) {
+    return JSON.stringify(a) || "undefined";
+  }
+}
+
+export function toBoolean(a: Opaque): boolean {
+  return !!a;
 }
 
 export function debugElement(e: Simple.Element): string {
@@ -152,4 +161,20 @@ export function outerHTML(element: Simple.Element): string {
   } else {
     throw new Error("innerHTML not supported yet on Simple.Element");
   }
+}
+
+export function stringify(object: Opaque): string {
+  let out = JSON.stringify(object);
+
+  if (out === undefined) {
+    return "undefined";
+  } else {
+    return out;
+  }
+}
+
+export function collapsed(header: string, body: string) {
+  console.groupCollapsed(header);
+  console.log(body);
+  console.groupEnd();
 }

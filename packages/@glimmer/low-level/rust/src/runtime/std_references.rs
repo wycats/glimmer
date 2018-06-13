@@ -7,11 +7,11 @@ use runtime::reference::VmValue;
 use runtime::validator::updatable::UpdatableTag;
 use runtime::validator::SharedTag;
 use runtime::validator::Validator;
-use std::fmt::Debug;
 
 use wasm_bindgen::prelude::*;
 
 use std::cell::RefCell;
+use std::fmt::{self, Debug};
 use std::ops::Deref;
 use std::rc::Rc;
 
@@ -40,11 +40,11 @@ pub struct ConstReference {
 impl ReferenceTrait for ConstReference {
     type Validator = Tag;
 
-    fn get_tag(&'input mut self) -> Validator<'input, Tag> {
+    fn get_tag(&'input self) -> Validator<'input, Tag> {
         Validator::Owned(Tag::new(ConstValidator))
     }
 
-    fn value(&mut self) -> VmValue {
+    fn value(&self) -> VmValue {
         self.inner.clone()
     }
 
@@ -77,6 +77,7 @@ pub trait JsReference: Debug {
     fn get_tag(&'input self) -> Validator<'input, Self::Validator>;
     fn value(&self) -> JsValue;
     fn get(&self, key: &str) -> Box<dyn JsReference<Validator = Self::Validator>>;
+    fn clone_ref(&self) -> Box<dyn JsReference<Validator = Self::Validator>>;
 }
 
 impl JsReference for Box<dyn JsReference<Validator = Tag>> {
@@ -93,9 +94,13 @@ impl JsReference for Box<dyn JsReference<Validator = Tag>> {
     fn get(&self, key: &str) -> Box<dyn JsReference<Validator = Tag>> {
         (**self).get(key)
     }
+
+    fn clone_ref(&self) -> Box<dyn JsReference<Validator = Self::Validator>> {
+        (**self).clone_ref()
+    }
 }
 
-#[derive(Debug)]
+#[derive(Clone)]
 crate struct JsRootReference {
     value: VmJsValue,
 }
@@ -108,27 +113,37 @@ impl JsRootReference {
     }
 }
 
+impl fmt::Debug for JsRootReference {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", ffi::stringify(&self.value.0))
+    }
+}
+
 impl JsReference for JsRootReference {
-    type Validator = Tag;
+    type Validator = SharedTag;
 
     fn value(&self) -> JsValue {
         self.value.0.clone()
     }
 
-    fn get_tag(&self) -> Validator<Tag> {
-        Validator::Owned(Tag::new(ConstValidator))
+    fn get_tag(&self) -> Validator<SharedTag> {
+        Validator::Owned(SharedTag::new(ConstValidator))
     }
 
-    fn get(&self, _key: &str) -> Box<dyn JsReference<Validator = Tag>> {
-        unimplemented!()
+    fn get(&self, key: &str) -> Box<dyn JsReference<Validator = SharedTag>> {
+        Box::new(JsRootPropertyReference::new(self.value.0.clone(), key))
+    }
+
+    fn clone_ref(&self) -> Box<dyn JsReference<Validator = Self::Validator>> {
+        Box::new(self.clone())
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct JsRootPropertyReference {
     parent: VmJsValue,
     key: String,
-    tag: Tag,
+    tag: SharedTag,
 }
 
 impl JsRootPropertyReference {
@@ -139,15 +154,15 @@ impl JsRootPropertyReference {
         JsRootPropertyReference {
             parent: VmJsValue(parent),
             key,
-            tag: Tag::new(JsTag::new(inner_tag)),
+            tag: SharedTag::new(JsTag::new(inner_tag)),
         }
     }
 }
 
 impl JsReference for JsRootPropertyReference {
-    type Validator = Tag;
+    type Validator = SharedTag;
 
-    fn get_tag(&self) -> Validator<Tag> {
+    fn get_tag(&self) -> Validator<SharedTag> {
         Validator::Borrowed(&self.tag)
     }
 
@@ -155,31 +170,35 @@ impl JsReference for JsRootPropertyReference {
         ffi::get(&self.parent.0, &self.key)
     }
 
-    fn get(&self, _key: &str) -> Box<dyn JsReference<Validator = Tag>> {
-        unimplemented!()
+    fn get(&self, key: &str) -> Box<dyn JsReference<Validator = SharedTag>> {
+        Box::new(JsNestedReference::new(self.clone_ref(), key))
+    }
+
+    fn clone_ref(&self) -> Box<dyn JsReference<Validator = Self::Validator>> {
+        Box::new(Clone::clone(self))
     }
 }
 
 #[derive(Debug)]
 struct JsNestedReference {
-    parent: Box<dyn JsReference<Validator = Tag>>,
+    parent: Box<dyn JsReference<Validator = SharedTag>>,
     key: String,
 }
 
 impl JsNestedReference {
     crate fn new(
-        parent: impl JsReference<Validator = Tag> + 'static,
+        parent: Box<dyn JsReference<Validator = SharedTag> + 'static>,
         key: impl Into<String>,
     ) -> JsNestedReference {
         JsNestedReference {
-            parent: Box::new(parent),
+            parent,
             key: key.into(),
         }
     }
 }
 
 impl JsReference for JsNestedReference {
-    type Validator = Tag;
+    type Validator = SharedTag;
 
     fn value(&self) -> JsValue {
         let parent = self.parent.value();
@@ -187,39 +206,82 @@ impl JsReference for JsNestedReference {
         ffi::get(&parent, &self.key)
     }
 
-    fn get_tag(&'input self) -> Validator<'input, Tag> {
+    fn get_tag(&'input self) -> Validator<'input, SharedTag> {
         let parent_tag = self.parent.get_tag();
         let parent = self.parent.value();
 
         let new_tag = ffi::tag_for_property(&parent, &self.key);
 
-        unimplemented!()
+        panic!("Unimplemented JsNestedReference#get_tag({:?})", self.key)
     }
 
-    fn get(&self, _key: &str) -> Box<dyn JsReference<Validator = Tag>> {
-        unimplemented!()
+    fn get(&self, key: &str) -> Box<dyn JsReference<Validator = SharedTag>> {
+        Box::new(JsNestedReference::new(self.clone_ref(), key))
+    }
+
+    fn clone_ref(&self) -> Box<dyn JsReference<Validator = Self::Validator>> {
+        Box::new(JsNestedReference {
+            parent: self.parent.clone_ref(),
+            key: self.key.clone(),
+        })
+    }
+}
+
+#[derive(Debug)]
+crate struct ConditionalReference {
+    inner: Reference,
+}
+
+impl ConditionalReference {
+    crate fn new(inner: Reference) -> ConditionalReference {
+        ConditionalReference { inner }
+    }
+}
+
+impl ReferenceTrait for ConditionalReference {
+    type Validator = SharedTag;
+
+    fn get_tag(&self) -> Validator<SharedTag> {
+        self.inner.get_tag()
+    }
+
+    fn value(&self) -> VmValue {
+        let value = self.inner.value();
+
+        let boolean = match value {
+            VmValue::JsValue(value) => ffi::to_boolean(&value.0),
+            VmValue::Integer(int) => int == 0,
+            VmValue::Float(float) => float == 0.0,
+            VmValue::Boolean(boolean) => boolean == true,
+            VmValue::String(string) => string == "",
+            VmValue::Str(string) => string == "",
+            VmValue::Null => false,
+            VmValue::Undefined => false,
+        };
+
+        VmValue::Boolean(boolean)
     }
 }
 
 #[derive(Debug)]
 pub enum Reference {
     Constant(ConstReference),
-    JsReference(Box<dyn JsReference<Validator = Tag>>),
-    Other(Box<dyn ReferenceTrait<Validator = Tag>>),
+    JsReference(Box<dyn JsReference<Validator = SharedTag>>),
+    Other(Box<dyn ReferenceTrait<Validator = SharedTag>>),
 }
 
 impl ReferenceTrait for Reference {
-    type Validator = Tag;
+    type Validator = SharedTag;
 
-    fn get_tag(&mut self) -> Validator<Tag> {
+    fn get_tag(&self) -> Validator<SharedTag> {
         match self {
-            Reference::Constant(constant) => Validator::Owned(Tag::new(ConstValidator)),
+            Reference::Constant(constant) => Validator::Owned(SharedTag::new(ConstValidator)),
             Reference::JsReference(js) => js.get_tag(),
             Reference::Other(other) => other.get_tag(),
         }
     }
 
-    fn value(&mut self) -> VmValue {
+    fn value(&self) -> VmValue {
         match self {
             Reference::Constant(constant) => constant.inner.clone(),
             Reference::JsReference(js) => VmValue::JsValue(VmJsValue(js.value())),
@@ -242,5 +304,9 @@ impl Reference {
 
     crate fn string(s: impl Into<String>) -> Reference {
         Reference::Constant(ConstReference::string(s.into()))
+    }
+
+    crate fn other(r: impl ReferenceTrait<Validator = SharedTag> + 'static) -> Reference {
+        Reference::Other(Box::new(r))
     }
 }

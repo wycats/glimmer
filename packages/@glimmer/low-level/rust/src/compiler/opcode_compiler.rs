@@ -1,3 +1,5 @@
+use super::builtin_blocks::{try_compile_block, BuiltinResult, CompileBlock};
+use debug::WasmUnwrap;
 use ffi::println;
 use hir::Attribute;
 use hir::Expression;
@@ -7,6 +9,7 @@ use hir::Statement;
 use hir::Value;
 use program::VMHandle;
 use program::{ConstantString, Constants, Program};
+use std::collections::HashMap;
 use template::Template;
 
 use wasm_bindgen::prelude::*;
@@ -28,8 +31,8 @@ impl ProgramCompiler {
     }
 
     pub fn add(&mut self, template: &str) -> ProgramTemplate {
-        let json = serde_json::from_str(template).unwrap();
-        let template = Template::new(json).unwrap();
+        let json = serde_json::from_str(template).wasm_unwrap();
+        let template = Template::new(json).wasm_unwrap();
         let index = self.templates.len();
         self.templates.push(template);
         ProgramTemplate {
@@ -39,60 +42,183 @@ impl ProgramCompiler {
 
     pub fn compile(&mut self, template: ProgramTemplate) -> VMHandle {
         let template = &self.templates[template.offset as usize];
-        let handle = self.encoder.next_handle();
 
-        for statement in &template.statements {
-            self.encoder.compile_statement(statement);
-        }
+        let offset = self.encoder.with_frame(|frame| {
+            for statement in &template.statements {
+                frame.compile_statement(statement);
+            }
 
-        // TODO: Don't hardcode this
-        self.encoder.exit();
+            frame.push(Opcode::Return);
+        });
 
-        handle
+        VMHandle::new(offset)
     }
 }
 
 impl ProgramCompiler {
     crate fn as_program(&'program self) -> Program<'program> {
-        Program::new(&self.encoder.constants, &self.encoder.buffer[..])
+        let program = Program::new(&self.encoder.constants, &self.encoder.buffer[..]);
+
+        trace_collapsed!("Whole program", program.debug());
+
+        program
     }
 }
 
-pub struct Encoder {
-    buffer: Vec<Opcode>,
-    constants: Constants,
+crate struct LabelTarget {
+    at: isize,
+    target: &'static str,
 }
 
-impl Encoder {
-    fn new() -> Encoder {
-        Encoder {
-            buffer: Vec::with_capacity(1024 * 16),
-            constants: Constants::new(),
+// A frame represents a block of code between a `{{#...}}` and a
+// `{{/...}}`.
+
+/// EncoderFrame represents a single compiled block, which is
+/// being compiled into a single flat Program.
+crate struct EncoderFrame<'encoder> {
+    encoder: &'encoder mut Encoder,
+    buffer: Vec<Opcode>,
+    labels: HashMap<&'static str, isize>,
+    targets: Vec<LabelTarget>,
+}
+
+impl EncoderFrame<'encoder> {
+    crate fn new(encoder: &mut Encoder) -> EncoderFrame<'_> {
+        EncoderFrame {
+            encoder,
+            buffer: vec![],
+            labels: HashMap::new(),
+            targets: vec![],
         }
     }
 
-    fn next_handle(&self) -> VMHandle {
-        VMHandle::new(self.buffer.len() as u32)
+    crate fn with_frame(&mut self, with_frame: impl FnOnce(&mut EncoderFrame)) -> usize {
+        let mut frame = EncoderFrame::new(self.encoder);
+        with_frame(&mut frame);
+        let next = frame.finalize();
+
+        next
     }
 
-    fn compile_expression(&mut self, expression: &Expression) {
+    crate fn compile_block(&mut self, statements: &[Statement]) {
+        for statement in statements {
+            self.compile_statement(statement);
+        }
+    }
+
+    crate fn goto_block(
+        &mut self,
+        args: impl FnOnce(&mut EncoderFrame) -> usize,
+        body: impl FnOnce(&mut EncoderFrame),
+    ) {
+        let count = args(self);
+        self.push(Opcode::PushFrame(count));
+
+        let offset = self.with_frame(|frame| {
+            body(frame);
+            frame.push(Opcode::Return);
+        });
+
+        self.push(Opcode::Call(offset));
+    }
+
+    crate fn push(&mut self, opcode: Opcode) {
+        self.buffer.push(opcode);
+    }
+
+    crate fn constants(&mut self) -> &mut Constants {
+        &mut self.encoder.constants
+    }
+
+    crate fn target(&mut self, at: isize, target: &'static str) {
+        self.targets.push(LabelTarget { at, target });
+    }
+
+    crate fn label(&mut self, name: &'static str, index: isize) {
+        self.labels.insert(name, index);
+    }
+
+    crate fn patch(&mut self) {
+        let EncoderFrame {
+            encoder,
+            buffer,
+            labels,
+            targets,
+        } = self;
+
+        for LabelTarget { at, target } in targets {
+            let address = labels[target] - *at;
+        }
+    }
+
+    crate fn patch_opcode(&mut self, opcode: &mut RelativeJump, address: isize) -> RelativeJump {
+        match opcode {
+            RelativeJump::Goto(_) => RelativeJump::Goto(address),
+            RelativeJump::JumpIf(_) => RelativeJump::JumpIf(address),
+            RelativeJump::JumpUnless(_) => RelativeJump::JumpUnless(address),
+        }
+    }
+
+    fn finalize(mut self) -> usize {
+        self.patch();
+        let buffer = self.buffer;
+        trace_collapsed!("Adding buffer to program", format!("{:#?}", buffer));
+        let next = self.encoder.buffer.len();
+        self.encoder.buffer.extend(buffer);
+        next
+    }
+}
+
+impl EncoderFrame<'encoder> {
+    crate fn compile_expression(&mut self, expression: &Expression) {
         ExpressionEncoder::from_encoder(self).compile_expression(expression)
     }
 
     fn compile_statement(&mut self, statement: &Statement) {
+        trace_collapsed!(
+            format!("Compiling {}", statement),
+            format!("{:#?}", statement)
+        );
+
         match statement {
             Statement::Text(s) => {
-                let string = self.constants.add_string(&s);
+                let string = self.encoder.constants.add_string(&s);
                 self.buffer.push(Opcode::Text(string));
             }
+            Statement::Append {
+                expression,
+                trusting,
+            } => {
+                self.compile_expression(expression);
+                self.buffer.push(Opcode::AppendText);
+            }
             Statement::OpenElement(t) => {
-                let string = self.constants.add_string(&t);
+                let string = self.constants().add_string(&t);
                 self.buffer.push(Opcode::OpenElement(string));
             }
             Statement::FlushElement => self.buffer.push(Opcode::FlushElement),
             Statement::CloseElement => self.buffer.push(Opcode::CloseElement),
 
             Statement::Parameter(p) => self.compile_parameter(p),
+
+            Statement::Block {
+                call,
+                default,
+                alternative,
+            } => {
+                let compile = CompileBlock {
+                    call,
+                    default,
+                    alternative,
+                };
+
+                match try_compile_block(compile, self) {
+                    BuiltinResult::Compiled => {}
+                    BuiltinResult::NotCompiled => {
+                        panic!("Couldn't compile block with name {}", call.name)
+                    }
+                }
+            }
 
             rest => {
                 panic!("Unimplemented compile {:?}", rest);
@@ -114,11 +240,11 @@ impl Encoder {
                 value,
                 namespace,
             } => {
-                self.buffer.push(Opcode::StaticAttr {
-                    name: self.constants.add_string(&name),
-                    value: self.constants.add_string(&value),
+                self.buffer.push(Opcode::StaticAttr(StaticAttr {
+                    name: self.encoder.constants.add_string(&name),
+                    value: self.encoder.constants.add_string(&value),
                     namespace: None,
-                });
+                }));
             }
 
             Attribute::DynamicAttr {
@@ -127,10 +253,10 @@ impl Encoder {
                 namespace,
             } => {
                 self.compile_expression(value);
-                self.buffer.push(Opcode::CautiousAttr {
-                    name: self.constants.add_string(&name),
+                self.buffer.push(Opcode::CautiousAttr(DynamicAttr {
+                    name: self.encoder.constants.add_string(&name),
                     namespace: None,
-                })
+                }))
             }
 
             rest => {
@@ -144,16 +270,50 @@ impl Encoder {
     }
 }
 
+/// The data structure that is used to compile an entire program. This
+/// includes the opcodes as well as a Constants structure that
+/// accumulates strings as they are encountered during the compilation
+/// process.
+///
+/// Strings are interned in Constants; a given String will only appear
+/// once in the output program, no matter how many times it appears in
+/// the source.
+pub struct Encoder {
+    buffer: Vec<Opcode>,
+    constants: Constants,
+}
+
+impl Encoder {
+    fn new() -> Encoder {
+        Encoder {
+            buffer: Vec::with_capacity(1024 * 16),
+            constants: Constants::new(),
+        }
+    }
+
+    fn next_handle(&self) -> VMHandle {
+        VMHandle::new(self.buffer.len())
+    }
+
+    crate fn with_frame(&mut self, with_frame: impl FnOnce(&mut EncoderFrame)) -> usize {
+        EncoderFrame::new(self).with_frame(with_frame)
+    }
+
+    crate fn buffer(&mut self) -> &mut Vec<Opcode> {
+        &mut self.buffer
+    }
+}
+
 struct ExpressionEncoder<'compiler> {
     buffer: &'compiler mut Vec<Opcode>,
     constants: &'compiler mut Constants,
 }
 
 impl ExpressionEncoder<'compiler> {
-    fn from_encoder(encoder: &mut Encoder) -> ExpressionEncoder {
+    fn from_encoder(encoder: &'c mut EncoderFrame) -> ExpressionEncoder<'c> {
         ExpressionEncoder {
             buffer: &mut encoder.buffer,
-            constants: &mut encoder.constants,
+            constants: &mut encoder.encoder.constants,
         }
     }
 
@@ -163,7 +323,15 @@ impl ExpressionEncoder<'compiler> {
             Expression::Concat(positional) => {
                 self.compile_positional(positional);
                 self.buffer
-                    .push(Opcode::Concat(positional.expressions.len() as u32));
+                    .push(Opcode::Concat(positional.expressions.len()));
+            }
+            Expression::MaybeLocal(path) => {
+                self.buffer.push(Opcode::GetVariable(0));
+
+                for part in &path.parts {
+                    let part = self.constants.add_string(part);
+                    self.buffer.push(Opcode::GetProperty(part));
+                }
             }
             Expression::Value(value) => self.compile_value(value),
             Expression::Unknown(name) => self.compile_unknown(name),
@@ -237,40 +405,55 @@ impl ProgramTemplate {
 }
 
 #[derive(Copy, Clone, Debug)]
+crate struct StaticAttr {
+    crate name: ConstantString,
+    crate value: ConstantString,
+    crate namespace: Option<ConstantString>,
+}
+
+#[derive(Copy, Clone, Debug)]
+crate struct DynamicAttr {
+    crate name: ConstantString,
+    crate namespace: Option<ConstantString>,
+}
+
+#[derive(Copy, Clone, Debug)]
 crate enum Opcode {
-    GetVariable(u32),
+    GetVariable(usize),
     GetProperty(ConstantString),
     Text(ConstantString),
+    AppendText,
     OpenElement(ConstantString),
-    StaticAttr {
-        name: ConstantString,
-        value: ConstantString,
-        namespace: Option<ConstantString>,
-    },
-    TrustingAttr {
-        name: ConstantString,
-        namespace: Option<ConstantString>,
-    },
-    CautiousAttr {
-        name: ConstantString,
-        namespace: Option<ConstantString>,
-    },
+    StaticAttr(StaticAttr),
+    TrustingAttr(DynamicAttr),
+    CautiousAttr(DynamicAttr),
     FlushElement,
     CloseElement,
-    PushFrame,
-    PopFrame,
+    PushFrame(usize),
+    Return,
+    ToBoolean,
     Primitive(Primitive),
     String(ConstantString),
     PrimitiveReference,
-    Concat(u32),
+    Concat(usize),
+    Jump(RelativeJump),
+    Call(usize),
     Exit,
+}
+
+#[derive(Copy, Clone, Debug)]
+crate enum RelativeJump {
+    Goto(isize),
+    JumpIf(isize),
+    JumpUnless(isize),
 }
 
 #[derive(Debug)]
 crate enum DebugOpcode<'constants> {
-    GetVariable(u32),
+    GetVariable(usize),
     GetProperty(&'constants str),
     Text(&'constants str),
+    AppendText,
     OpenElement(&'constants str),
     StaticAttr {
         name: &'constants str,
@@ -287,12 +470,15 @@ crate enum DebugOpcode<'constants> {
     },
     FlushElement,
     CloseElement,
-    PushFrame,
-    PopFrame,
+    PushFrame(usize),
+    Return,
+    ToBoolean,
     Primitive(Primitive),
     String(&'constants str),
     PrimitiveReference,
-    Concat(u32),
+    Concat(usize),
+    Jump(RelativeJump),
+    Call(usize),
     Exit,
 }
 
@@ -304,34 +490,38 @@ impl Opcode {
                 DebugOpcode::GetProperty(constants.get_string(*constant))
             }
             Opcode::Text(constant) => DebugOpcode::Text(constants.get_string(*constant)),
+            Opcode::AppendText => DebugOpcode::AppendText,
             Opcode::OpenElement(constant) => {
                 DebugOpcode::OpenElement(constants.get_string(*constant))
             }
-            Opcode::StaticAttr {
+            Opcode::StaticAttr(StaticAttr {
                 name,
                 value,
                 namespace,
-            } => DebugOpcode::StaticAttr {
+            }) => DebugOpcode::StaticAttr {
                 name: constants.get_string(*name),
                 value: constants.get_string(*value),
                 namespace: namespace.map(|n| constants.get_string(n)),
             },
-            Opcode::TrustingAttr { name, namespace } => DebugOpcode::TrustingAttr {
+            Opcode::TrustingAttr(DynamicAttr { name, namespace }) => DebugOpcode::TrustingAttr {
                 name: constants.get_string(*name),
                 namespace: namespace.map(|n| constants.get_string(n)),
             },
-            Opcode::CautiousAttr { name, namespace } => DebugOpcode::CautiousAttr {
+            Opcode::CautiousAttr(DynamicAttr { name, namespace }) => DebugOpcode::CautiousAttr {
                 name: constants.get_string(*name),
                 namespace: namespace.map(|n| constants.get_string(n)),
             },
             Opcode::FlushElement => DebugOpcode::FlushElement,
             Opcode::CloseElement => DebugOpcode::CloseElement,
-            Opcode::PushFrame => DebugOpcode::PushFrame,
-            Opcode::PopFrame => DebugOpcode::PopFrame,
+            Opcode::PushFrame(count) => DebugOpcode::PushFrame(*count),
+            Opcode::Return => DebugOpcode::Return,
+            Opcode::ToBoolean => DebugOpcode::ToBoolean,
             Opcode::Primitive(primitive) => DebugOpcode::Primitive(*primitive),
             Opcode::String(constant) => DebugOpcode::String(constants.get_string(*constant)),
             Opcode::PrimitiveReference => DebugOpcode::PrimitiveReference,
             Opcode::Concat(int) => DebugOpcode::Concat(*int),
+            Opcode::Jump(jump) => DebugOpcode::Jump(*jump),
+            Opcode::Call(to) => DebugOpcode::Call(*to),
             Opcode::Exit => DebugOpcode::Exit,
         }
     }

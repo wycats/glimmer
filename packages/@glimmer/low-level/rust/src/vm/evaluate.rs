@@ -1,12 +1,10 @@
-use runtime::std_references::Reference;
-use ffi::println;
-use opcode_compiler::Opcode;
-use program::Program;
-use runtime::reference::ReferenceTrait;
-use runtime::std_references::ConstReference;
-use vm::VmState;
-use vm::stack::StackEntry;
+use compiler::{DynamicAttr, Opcode, StaticAttr};
+use ffi;
 use itertools::Itertools;
+use program::Program;
+use runtime::reference::{ReferenceTrait, VmValue};
+use runtime::std_references::{ConditionalReference, ConstReference, Reference};
+use vm::VmState;
 
 use wasm_bindgen::prelude::*;
 
@@ -19,7 +17,7 @@ pub struct TemplateIterator {
 crate enum Next {
     Continue,
     Exit,
-    Goto(i32),
+    Goto(isize),
 }
 
 impl TemplateIterator {
@@ -28,15 +26,15 @@ impl TemplateIterator {
     }
 
     crate fn next(&mut self, program: Program) -> bool {
+        trace!("Evaluating opcode at {}", self.state.pc());
+
         let op = program.at(self.state.pc());
 
         match self.evaluate(op, program) {
             Next::Continue => self.state.next(),
             Next::Goto(pc) => self.state.goto(pc),
-            Next::Exit => return false,
+            Next::Exit => false,
         }
-
-        true
     }
 
     crate fn finish(&mut self, program: Program) {
@@ -44,14 +42,23 @@ impl TemplateIterator {
     }
 
     crate fn evaluate(&mut self, op: Opcode, program: Program) -> Next {
-        debug!("Evaluating opcode: {:?}", op.debug(program.constants));
-        trace!("State {:#?}", self.state);
-        trace!("Progress {:#?}", self.state.builder.progress());
+        info!("Evaluating opcode: {:?}", op.debug(program.constants));
 
-        match op {
+        progress(&self.state);
+
+        let ret = match op {
             Opcode::Text(constant) => {
                 let string = program.string(constant);
                 self.state.builder.append_text(string);
+                Next::Continue
+            }
+
+            Opcode::AppendText => {
+                let mut reference = self.state.stack.pop_reference();
+                let mut value = reference.value();
+                let string = value.as_string();
+                self.state.builder.append_text(&string);
+
                 Next::Continue
             }
 
@@ -61,11 +68,11 @@ impl TemplateIterator {
                 Next::Continue
             }
 
-            Opcode::StaticAttr {
+            Opcode::StaticAttr(StaticAttr {
                 name,
                 value,
                 namespace,
-            } => {
+            }) => {
                 let name = program.string(name);
                 let value = program.string(value);
                 self.state.builder().set_attribute(name, value);
@@ -82,7 +89,17 @@ impl TemplateIterator {
                 Next::Continue
             }
 
-            Opcode::CautiousAttr { name, namespace } => {
+            Opcode::PushFrame(count) => {
+                self.state.push_frame(count);
+                Next::Continue
+            }
+
+            Opcode::Return => {
+                self.state.return_from_call();
+                Next::Continue
+            }
+
+            Opcode::CautiousAttr(DynamicAttr { name, namespace }) => {
                 let name = program.string(name);
                 let stack = &mut self.state.stack;
 
@@ -96,20 +113,20 @@ impl TemplateIterator {
 
             Opcode::String(constant) => {
                 let string = program.string(constant);
-                self.state.stack.push(StackEntry::Reference(Reference::string(string)));
+                self.state.stack.push_reference(Reference::string(string));
                 Next::Continue
             }
 
             Opcode::GetVariable(slot) => {
-                let pointer = self.state.stack_pointer(slot);
-                self.state.stack.push(pointer);
+                self.state.stack.push_parent_pointer(slot);
                 Next::Continue
             }
 
             Opcode::GetProperty(constant) => {
                 let string = program.string(constant);
-                let top = self.state.stack.top_ref();
-                let next = top.get(string);
+                let top = self.state.stack.pop_and_deref_pointer();
+                let next = top.as_reference().get(string);
+                self.state.stack.push_reference(next);
                 Next::Continue
             }
 
@@ -118,20 +135,51 @@ impl TemplateIterator {
             Opcode::Concat(count) => {
                 let mut out: Vec<&mut Reference> = Vec::with_capacity(count as usize);
                 let mut stack = (&mut self.state.stack);
-                let mut string = String::new();
+                let mut strings = Vec::new();
 
                 for _ in 0..count {
-                    string.push_str(&(stack.pop_reference().value().as_string()));
+                    let mut reference = stack.pop_reference();
+                    let value = reference.value();
+                    let string = value.as_string();
+                    strings.push(string.to_string());
                 }
 
-                stack.push(StackEntry::Reference(Reference::string(string)));
+                strings.reverse();
+
+                stack.push_reference(Reference::string(strings.join("")));
 
                 Next::Continue
             }
 
+            Opcode::ToBoolean => {
+                // self.state.stack.update_top(|entry| {});
+                // let mut reference = self.state.stack.pop_reference();
+                // let boolean = ConditionalReference::new(*reference);
+
+                // self.state
+                //     .stack
+                //     .push(StackEntry::Reference(Reference::other(boolean)));
+
+                Next::Continue
+            }
+
+            Opcode::Call(target) => Next::Goto(target as isize),
+
             rest => {
                 panic!("Unimplemented evaluate {:#?}", rest);
             }
-        }
+        };
+
+        progress(&self.state);
+
+        ret
     }
+}
+
+fn progress(state: &VmState) {
+    trace_collapsed!(
+        format!("State {}", state.debug_short()),
+        format!("{:#?}", state)
+    );
+    trace_collapsed!("Progress", format!("{:#?}", state.builder.progress()));
 }

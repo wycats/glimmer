@@ -1,14 +1,15 @@
-use opcode_compiler::{Opcode, ProgramCompiler};
+use compiler::{Opcode, ProgramCompiler};
+use itertools::Itertools;
 use template::Template;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 pub struct VMHandle {
-    crate offset: u32,
+    crate offset: usize,
 }
 
 impl VMHandle {
-    crate fn new(offset: u32) -> VMHandle {
+    crate fn new(offset: usize) -> VMHandle {
         VMHandle { offset }
     }
 }
@@ -24,12 +25,22 @@ impl Program<'program> {
         Program { constants, opcodes }
     }
 
-    crate fn at(&self, at: i32) -> Opcode {
+    crate fn at(&self, at: isize) -> Opcode {
         self.opcodes[at as usize]
     }
 
     crate fn string(&self, constant: ConstantString) -> &str {
         self.constants.get_string(constant)
+    }
+
+    crate fn debug(&self) -> String {
+        let mut out: Vec<String> = vec![];
+
+        for opcode in self.opcodes {
+            out.push(format!("{:?}", opcode.debug(self.constants)));
+        }
+
+        out.iter().join("\n")
     }
 }
 

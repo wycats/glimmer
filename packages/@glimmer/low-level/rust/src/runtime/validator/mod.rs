@@ -95,8 +95,8 @@ impl ValidatorTrait for Tag {
     }
 }
 
-#[derive(Debug)]
-crate struct SharedTag {
+#[derive(Debug, Clone)]
+pub struct SharedTag {
     inner: Rc<RefCell<Tag>>,
 }
 

@@ -1,7 +1,7 @@
 #![allow(dead_code, unused_macros)]
 
+use log::{self, Level, Log, Metadata, Record, SetLoggerError};
 use std::fmt;
-use log::{self, Log, Record, Level, Metadata, SetLoggerError};
 
 use wasm_bindgen;
 
@@ -11,6 +11,15 @@ use ffi;
 // enabled.
 macro_rules! debug_println {
     ($($t:tt)*) => (::debug::_println(&format_args!($($t)*)))
+}
+
+// Logs a header and body, with the body collapsed.
+macro_rules! trace_collapsed {
+    ($header:expr, $body:expr) => {
+        if log_enabled!($crate::log::Level::Trace) {
+            $crate::ffi::collapsed(&$header[..], &format!("{}", $body));
+        }
+    };
 }
 
 // Override libstd's panic macro so we can hopefully get a better message by
@@ -82,7 +91,7 @@ static WASM_LOGGER: WasmLogger = WasmLogger;
 
 #[wasm_bindgen()]
 pub fn init_wasm_logger(level: &str) {
-    log::set_logger(&WASM_LOGGER).unwrap();
+    log::set_logger(&WASM_LOGGER).wasm_unwrap();
 
     let filter = match level {
         "trace" => log::LevelFilter::Trace,
@@ -91,8 +100,47 @@ pub fn init_wasm_logger(level: &str) {
         "warn" => log::LevelFilter::Warn,
         "error" => log::LevelFilter::Error,
         "off" => log::LevelFilter::Off,
-        _ => panic!("Initializing logger with invalid level filter {:?}", level)
+        _ => panic!("Initializing logger with invalid level filter {:?}", level),
     };
 
     log::set_max_level(filter);
+}
+
+crate trait WasmUnwrap: Sized {
+    type Target;
+
+    fn wasm_unwrap(self) -> Self::Target {
+        self.wasm_expect("Called Option::unwrap on None")
+    }
+
+    fn wasm_expect(self, message: &str) -> Self::Target;
+}
+
+impl<T> WasmUnwrap for Option<T> {
+    type Target = T;
+
+    fn wasm_expect(self, message: &str) -> T {
+        match self {
+            None => panic!("{}", message),
+            Some(value) => value,
+        }
+    }
+}
+
+impl<T, E: fmt::Debug> WasmUnwrap for Result<T, E> {
+    type Target = T;
+
+    fn wasm_expect(self, message: &str) -> T {
+        match self {
+            Err(err) => panic!("{:?} ({})", err, message),
+            Ok(value) => value,
+        }
+    }
+
+    fn wasm_unwrap(self) -> T {
+        match self {
+            Err(err) => panic!("{:?}", err),
+            Ok(value) => value,
+        }
+    }
 }

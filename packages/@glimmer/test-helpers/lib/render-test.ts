@@ -1035,7 +1035,7 @@ export function renderTemplate(
 ) {
   let template = env.add(preprocess(src).block);
   let handle = env.compile(template);
-  let iterator = env.renderMain(handle, cursor);
+  let iterator = env.renderMain(handle, cursor, self.value());
   return renderSync(env, iterator);
 }
 

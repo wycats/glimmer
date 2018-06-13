@@ -3,30 +3,59 @@ use vm::cursor::Cursor;
 use vm::element::DOMElementBuilder;
 use vm::element::ElementBuilder;
 use vm::stack::Stack;
-use vm::stack::StackEntry;
+
+use std::fmt;
 
 #[derive(Debug)]
 crate struct Registers {
-    crate pc: i32,
-    crate ra: i32,
-    crate fp: u32,
+    crate pc: isize,
+    crate ra: isize,
+    crate fp: usize,
 }
 
 impl Registers {
-    crate fn new(pc: i32) -> Registers {
-        Registers { pc, ra: 0, fp: 0 }
+    crate fn new(pc: isize) -> Registers {
+        Registers { pc, ra: -1, fp: 0 }
     }
 }
 
-#[derive(Debug)]
 crate struct VmState {
     crate builder: Box<dyn ElementBuilder>,
     crate stack: Stack,
     crate registers: Registers,
 }
 
+impl fmt::Debug for VmState {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("VmState")
+            .field(
+                "registers",
+                &format_args!("pc={} ra={}", self.registers.pc, self.registers.ra),
+            )
+            .field("stack", &DebugStack(&self.stack))
+            .finish()
+    }
+}
+
+struct DebugStack<'input>(&'input Stack);
+
+impl fmt::Debug for DebugStack<'input> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_list()
+            .entries(self.0.debug_frames().iter())
+            .finish()
+    }
+}
+
 impl VmState {
-    crate fn pc(&self) -> i32 {
+    crate fn debug_short(&self) -> String {
+        format!(
+            "pc={} ra={} fp={}",
+            self.registers.pc, self.registers.ra, self.registers.fp
+        )
+    }
+
+    crate fn pc(&self) -> isize {
         self.registers.pc
     }
 
@@ -34,17 +63,7 @@ impl VmState {
         &mut *self.builder
     }
 
-    crate fn get_variable(&self, offset: u32) -> &StackEntry {
-        let fp = self.registers.fp;
-        self.stack.at(fp + 1 + offset as u32)
-    }
-
-    crate fn stack_pointer(&self, offset: u32) -> StackEntry {
-        let fp = self.registers.fp;
-        StackEntry::StackPointer(fp + offset)
-    }
-
-    crate fn browser(root: Cursor, pc: i32) -> VmState {
+    crate fn browser(root: Cursor, pc: isize) -> VmState {
         VmState {
             builder: DOMElementBuilder::browser(root),
             stack: Stack::new(),
@@ -52,35 +71,29 @@ impl VmState {
         }
     }
 
-    crate fn next(&mut self) {
-        self.registers.pc += 1;
-    }
-
-    crate fn goto(&mut self, target: i32) {
-        self.registers.pc = target;
-    }
-
-    crate fn push_frame(&mut self) {
-        self.stack.push(StackEntry::FrameStart {
-            ra: self.registers.ra,
-            fp: self.stack.len()
-        });
-
-        self.registers.fp = self.stack.len();
-    }
-
-    crate fn pop_frame(&mut self) {
-        self.stack.truncate(self.registers.fp);
-
-        match self.stack.pop() {
-            StackEntry::FrameStart { ra, fp } => {
-                self.registers.ra = ra;
-                self.stack.truncate(fp);
-            }
-
-            rest => {
-                panic!("Expected top of stack to be FrameStart, was {:?}", rest);
-            }
+    crate fn next(&mut self) -> bool {
+        if self.registers.pc == -1 {
+            false
+        } else {
+            self.registers.pc += 1;
+            true
         }
+    }
+
+    crate fn goto(&mut self, target: isize) -> bool {
+        self.registers.pc = target;
+        true
+    }
+
+    crate fn return_from_call(&mut self) -> bool {
+        let ra = self.stack.pop_frame();
+
+        self.registers.pc = self.registers.ra;
+        self.registers.ra = ra;
+        true
+    }
+
+    crate fn push_frame(&mut self, count: usize) {
+        self.stack.push_frame(self.registers.ra);
     }
 }

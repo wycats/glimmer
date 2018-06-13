@@ -1,177 +1,226 @@
+use debug::WasmUnwrap;
 use runtime::reference::VmValue;
 use runtime::std_references::ConstReference;
 use runtime::std_references::Reference;
 
+use std::fmt;
 use std::ops::{Deref, DerefMut};
 
-#[derive(Debug)]
-crate struct Stack {
+#[derive(Debug, new)]
+crate struct StackFrame {
+    #[new(default)]
     entries: Vec<StackEntry>,
+    ra: isize,
+}
+
+impl StackFrame {
+    fn push(&mut self, entry: StackEntry) {
+        self.entries.push(entry);
+    }
+
+    fn pop(&mut self) -> StackEntry {
+        self.entries
+            .pop()
+            .wasm_expect("Tried to pop a stack with no frames")
+    }
+}
+
+enum StackEntry {
+    Pointer { frame: usize, offset: usize },
+    ByValue(StackByValue),
+    ByReference(StackByReference),
+}
+
+impl fmt::Debug for StackEntry {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            StackEntry::Pointer { frame, offset } => write!(f, "*({}:{})", frame, offset),
+            StackEntry::ByValue(by_value) => match *by_value {
+                StackByValue::Integer(integer) => write!(f, "{:?}", integer),
+                StackByValue::Float(float) => write!(f, "{:?}", float),
+                StackByValue::Boolean(boolean) => write!(f, "{:?}", boolean),
+            },
+            StackEntry::ByReference(by_reference) => match by_reference {
+                StackByReference::String(string) => write!(f, "{:?}", string),
+                StackByReference::Reference(reference) => write!(f, "Reference"),
+            },
+        }
+    }
 }
 
 #[derive(Debug)]
-crate enum StackEntry {
-    Reference(Reference),
+crate enum OwnedStackEntry<'stack> {
     Integer(i64),
     Float(f64),
-    StackPointer(u32),
-    FrameStart { ra: i32, fp: u32 },
+    Boolean(bool),
+    Reference(&'stack Reference),
+    String(&'stack str),
+}
+
+impl OwnedStackEntry<'stack> {
+    crate fn as_reference(&self) -> &'stack Reference {
+        match self {
+            OwnedStackEntry::Reference(reference) => reference,
+
+            rest => panic!("Expected stack entry to be Reference, was {:?}", rest),
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+enum StackByValue {
+    Integer(i64),
+    Float(f64),
+    Boolean(bool),
+}
+
+#[derive(Debug)]
+enum StackByReference {
+    Reference(Reference),
     String(String),
 }
 
-impl Into<Reference> for StackEntry {
-    fn into(self) -> Reference {
-        match self {
-            StackEntry::Reference(reference) => reference,
-            rest => panic!("{:#?} wasn't a reference", rest),
-        }
-    }
-}
-
-crate enum ReferenceEntry<'stack> {
-    Owned(Reference),
-    InStack(&'stack mut Reference),
-}
-
-impl Deref for ReferenceEntry<'stack> {
-    type Target = Reference;
-
-    fn deref(&self) -> &Reference {
-        match self {
-            ReferenceEntry::Owned(reference) => reference,
-            ReferenceEntry::InStack(reference) => reference
-        }
-    }
-}
-
-impl DerefMut for ReferenceEntry<'stack> {
-    fn deref_mut(&mut self) -> &mut Reference {
-        match self {
-            ReferenceEntry::Owned(reference) => reference,
-            ReferenceEntry::InStack(reference) => reference
-        }
-    }
+#[derive(Debug, new)]
+crate struct Stack {
+    #[new(value = "vec![StackFrame::new(-1)]")]
+    frames: Vec<StackFrame>,
 }
 
 impl Stack {
-    crate fn new() -> Stack {
-        Stack { entries: vec![] }
+    crate fn debug_frames(&self) -> &[StackFrame] {
+        &self.frames
     }
 
-    crate fn len(&self) -> u32 {
-        self.entries.len() as u32
+    crate fn push_frame(&mut self, ra: isize) {
+        self.frames.push(StackFrame::new(ra));
     }
 
-    crate fn truncate(&mut self, len: u32) {
-        self.entries.truncate(len as usize)
+    crate fn pop_frame(&mut self) -> isize {
+        let frame = self.frames.pop().wasm_expect("Expected at least one frame");
+        frame.ra
+    }
+
+    crate fn push_integer(&mut self, integer: i64) {
+        self.top_frame()
+            .push(StackEntry::ByValue(StackByValue::Integer(integer)))
+    }
+
+    crate fn pop_integer(&mut self) -> i64 {
+        match self.top_frame().pop() {
+            StackEntry::ByValue(StackByValue::Integer(integer)) => integer,
+
+            rest => panic!("Expected integer at top of stack, got {:?}", rest),
+        }
+    }
+
+    crate fn push_float(&mut self, float: f64) {
+        self.top_frame()
+            .push(StackEntry::ByValue(StackByValue::Float(float)))
+    }
+
+    crate fn pop_float(&mut self) -> f64 {
+        match self.top_frame().pop() {
+            StackEntry::ByValue(StackByValue::Float(float)) => float,
+
+            rest => panic!("Expected float at top of stack, got {:?}", rest),
+        }
+    }
+
+    crate fn push_boolean(&mut self, boolean: bool) {
+        self.top_frame()
+            .push(StackEntry::ByValue(StackByValue::Boolean(boolean)))
+    }
+
+    crate fn pop_boolean(&mut self) -> bool {
+        match self.top_frame().pop() {
+            StackEntry::ByValue(StackByValue::Boolean(boolean)) => boolean,
+
+            rest => panic!("Expected boolean at top of stack, got {:?}", rest),
+        }
+    }
+
+    crate fn push_string(&mut self, string: String) {
+        self.top_frame()
+            .push(StackEntry::ByReference(StackByReference::String(string)))
+    }
+
+    crate fn pop_string(&mut self) -> String {
+        match self.top_frame().pop() {
+            StackEntry::ByReference(StackByReference::String(string)) => string,
+
+            rest => panic!("Expected string at top of stack, got {:?}", rest),
+        }
     }
 
     crate fn push_reference(&mut self, reference: Reference) {
-        self.entries.push(StackEntry::Reference(reference));
+        self.top_frame()
+            .push(StackEntry::ByReference(StackByReference::Reference(
+                reference,
+            )))
     }
 
-    crate fn at(&self, index: u32) -> &StackEntry {
-        &self.entries[index as usize]
-    }
+    crate fn pop_reference(&mut self) -> Reference {
+        match self.top_frame().pop() {
+            StackEntry::ByReference(StackByReference::Reference(reference)) => reference,
 
-    crate fn top(&self) -> &StackEntry {
-        self.entries.last().unwrap()
-    }
-
-    crate fn top_mut(&mut self) -> &mut StackEntry {
-        self.entries.last_mut().unwrap()
-    }
-
-    crate fn nth_ref(&mut self, at: usize) -> &mut Reference {
-        let entries = &mut self.entries;
-        nth_ref(entries, at)
-    }
-
-    crate fn top_ref(&mut self) -> &mut Reference {
-        let len = self.entries.len();
-        let entries = &mut self.entries;
-        nth_ref(entries, len - 1)
-    }
-
-    crate fn pop_reference(&'stack mut self) -> ReferenceEntry<'stack> {
-        let len = self.entries.len();
-        let entries = &mut self.entries;
-        let index = nth_ref_index(entries, len - 1);
-
-        if index == len - 1 {
-            ReferenceEntry::Owned(entries.pop().unwrap().into())
-        } else {
-            entries.pop();
-            let reference = direct_nth_ref(entries, index);
-            ReferenceEntry::InStack(reference)
+            rest => panic!("Expected reference at top of stack, got {:?}", rest),
         }
     }
 
-    crate fn push(&mut self, entry: StackEntry) {
-        self.entries.push(entry)
+    crate fn push_parent_pointer(&mut self, parent_offset: usize) {
+        let parent_frame = self.frames.len() - 2;
+        let last = self.top_frame();
+
+        last.push(StackEntry::Pointer {
+            frame: parent_frame,
+            offset: parent_offset,
+        });
     }
 
-    crate fn pop(&mut self) -> StackEntry {
-        self.entries.pop().unwrap()
+    crate fn push_current_pointer(&mut self, offset: usize) {
+        let frame = self.frames.len() - 1;
+        let last = self.top_frame();
+
+        last.push(StackEntry::Pointer { frame, offset });
     }
-}
 
-enum RefPointer {
-    Direct(u32),
-    Indirect(u32),
-}
+    crate fn pop_and_deref_pointer(&'stack mut self) -> OwnedStackEntry<'stack> {
+        match self.top_frame().pop() {
+            StackEntry::Pointer { frame, offset } => {
+                let target_frame = &mut self.frames[frame];
+                let entry = &mut target_frame.entries[offset];
 
-fn nth_ref_index(entries: &mut [StackEntry], at: usize) -> usize {
-    let pointer: RefPointer = {
-        if at >= entries.len() {
-            panic!("Indexed entries at {}, but its contents were {:?}", at, entries);
+                match entry {
+                    StackEntry::ByValue(StackByValue::Integer(integer)) => {
+                        OwnedStackEntry::Integer(*integer)
+                    }
+
+                    StackEntry::ByValue(StackByValue::Float(float)) => {
+                        OwnedStackEntry::Float(*float)
+                    }
+
+                    StackEntry::ByValue(StackByValue::Boolean(boolean)) => {
+                        OwnedStackEntry::Boolean(*boolean)
+                    }
+
+                    StackEntry::ByReference(StackByReference::String(string)) => {
+                        OwnedStackEntry::String(string)
+                    }
+
+                    StackEntry::ByReference(StackByReference::Reference(reference)) => {
+                        OwnedStackEntry::Reference(reference)
+                    }
+
+                    rest => panic!("Expected pointer to a value, got a pointer ({:?})", rest),
+                }
+            }
+
+            rest => panic!("Expected pointer at top of stack, got {:?}", rest),
         }
-
-        let entry = &mut entries[at];
-
-        match entry {
-            StackEntry::Reference(reference) => RefPointer::Direct(at as u32),
-            StackEntry::StackPointer(pointer) => RefPointer::Indirect(*pointer as u32),
-            rest => panic!("{:#?} wasn't a reference", rest),
-        }
-    };
-
-    match pointer {
-        RefPointer::Direct(pointer) => pointer as usize,
-        RefPointer::Indirect(pointer) => nth_ref_index(entries, pointer as usize)
-    }
-}
-
-fn nth_ref(entries: &mut [StackEntry], at: usize) -> &mut Reference {
-    let pointer: RefPointer = {
-        if at >= entries.len() {
-            panic!("Indexed entries at {}, but its contents were {:?}", at, entries);
-        }
-
-        let entry = &mut entries[at];
-
-        match entry {
-            StackEntry::Reference(reference) => RefPointer::Direct(at as u32),
-            StackEntry::StackPointer(pointer) => RefPointer::Indirect(*pointer as u32),
-            rest => panic!("{:#?} wasn't a reference", rest),
-        }
-    };
-
-    match pointer {
-        RefPointer::Direct(pointer) => direct_nth_ref(entries, pointer as usize),
-        RefPointer::Indirect(pointer) => nth_ref(entries, pointer as usize)
-    }
-}
-
-fn direct_nth_ref(entries: &mut [StackEntry], at: usize) -> &mut Reference {
-    if at >= entries.len() {
-        panic!("Indexed entries at {}, but its contents were {:?}", at, entries);
     }
 
-    let entry = &mut entries[at];
-
-    match entry {
-        StackEntry::Reference(reference) => return reference,
-        rest => panic!("{:#?} wasn't a direct reference", rest),
+    fn top_frame(&mut self) -> &mut StackFrame {
+        let frame = self.frames.last_mut();
+        frame.wasm_expect("Expected at least one frame")
     }
 }

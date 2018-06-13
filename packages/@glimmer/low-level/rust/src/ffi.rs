@@ -6,7 +6,7 @@ use std::mem::transmute;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
-extern {
+extern "C" {
     #[wasm_bindgen(js_namespace = console, js_name = log)]
     crate fn console_log(s: &str);
 
@@ -32,6 +32,8 @@ extern "C" {
 
     pub fn println(s: &str);
     pub fn get(obj: &JsValue, key: &str) -> JsValue;
+
+    pub fn collapsed(header: &str, body: &str);
 
     #[wasm_bindgen(js_name = isEqual)]
     pub fn is_equal(a: &JsValue, b: &JsValue) -> bool;
@@ -96,6 +98,11 @@ extern "C" {
 
     #[wasm_bindgen(js_name = outerHTML)]
     pub fn outer_html(parent: &Element) -> String;
+
+    pub fn stringify(object: &JsValue) -> String;
+
+    #[wasm_bindgen(js_name = toBoolean)]
+    pub fn to_boolean(object: &JsValue) -> bool;
 }
 
 crate struct JsTag {
@@ -107,7 +114,6 @@ impl fmt::Debug for JsTag {
         write!(f, "Tag({})", to_string(&self.inner))
     }
 }
-
 
 impl JsTag {
     crate fn new(inner: JsValue) -> JsTag {

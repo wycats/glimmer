@@ -1,13 +1,16 @@
 use super::render_result::RenderResult;
-use opcode_compiler::{ProgramCompiler, ProgramTemplate};
+use compiler::{ProgramCompiler, ProgramTemplate};
+use ffi;
 use program::VMHandle;
+use runtime::std_references::{JsRootReference, Reference};
 use std::rc::Rc;
 use vm::cursor::Cursor;
 use vm::element::DOMElementBuilder;
 use vm::element::DOMElementBuilderDelegate;
 use vm::evaluate::TemplateIterator;
 use vm::VM;
-use wasm_bindgen::__rt::core::cell::RefCell;
+
+use std::cell::RefCell;
 
 use wasm_bindgen::prelude::*;
 
@@ -25,10 +28,18 @@ impl InnerLazyTestEnvironment {
     }
 
     #[allow(non_snake_case)]
-    pub fn renderMain(&mut self, handle: VMHandle, cursor: Cursor) -> TemplateIterator {
+    pub fn renderMain(
+        &mut self,
+        handle: VMHandle,
+        cursor: Cursor,
+        object: JsValue,
+    ) -> TemplateIterator {
         let program = self.compiler.as_program();
         let mut vm = VM::browser(program);
-        vm.render(handle, cursor)
+        info!("{}", ffi::stringify(&object));
+        let reference = JsRootReference::new(object);
+
+        vm.render(handle, cursor, Reference::JsReference(Box::new(reference)))
     }
 }
 
@@ -69,7 +80,12 @@ impl LazyTestEnvironment {
     }
 
     #[allow(non_snake_case)]
-    pub fn renderMain(&mut self, handle: VMHandle, cursor: Cursor) -> TemplateIterator {
-        self.inner.borrow_mut().renderMain(handle, cursor)
+    pub fn renderMain(
+        &mut self,
+        handle: VMHandle,
+        cursor: Cursor,
+        object: JsValue,
+    ) -> TemplateIterator {
+        self.inner.borrow_mut().renderMain(handle, cursor, object)
     }
 }

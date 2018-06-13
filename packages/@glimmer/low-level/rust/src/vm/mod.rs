@@ -1,8 +1,9 @@
 use vm::stack::Stack;
 use wasm_bindgen::prelude::*;
 
-use opcode_compiler::Opcode;
+use compiler::Opcode;
 use program::{Program, VMHandle};
+use runtime::std_references::Reference;
 use std::rc::Rc;
 use vm::cursor::Cursor;
 use vm::element::{
@@ -10,8 +11,6 @@ use vm::element::{
 };
 use vm::evaluate::TemplateIterator;
 use vm::state::VmState;
-use vm::stack::StackEntry;
-use runtime::std_references::Reference;
 
 pub mod cursor;
 pub mod element;
@@ -28,10 +27,10 @@ impl VM<'program> {
         VM { program }
     }
 
-    pub fn render(self, handle: VMHandle, root: Cursor) -> TemplateIterator {
-        let mut state = VmState::browser(root, handle.offset as i32);
-        state.push_frame();
-        state.stack.push(StackEntry::Reference(Reference::undefined()));
+    pub fn render(self, handle: VMHandle, root: Cursor, reference: Reference) -> TemplateIterator {
+        let mut state = VmState::browser(root, handle.offset as isize);
+        state.stack.push_reference(reference);
+        state.push_frame(1);
         TemplateIterator::new(state)
     }
 

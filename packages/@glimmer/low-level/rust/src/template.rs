@@ -30,7 +30,7 @@ impl Template {
 impl Template {
     crate fn new(template: Value) -> Result<Template, option::NoneError> {
         let statements = &template.as_object()?["statements"];
-        trace!("Parsing template: {:#?}", statements);
+        trace_collapsed!("Parsing template", format!("{:#?}", statements));
         let parsed = parse(statements);
         Ok(Template { statements: parsed })
     }
