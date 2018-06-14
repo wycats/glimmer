@@ -4,7 +4,7 @@ cargo-features = ["edition"]
 name = "rust"
 version = "0.1.0"
 authors = []
-edition = '2018'
+edition = '2015'
 
 [lib]
 crate-type = ["cdylib"]
