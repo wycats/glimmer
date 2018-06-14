@@ -1,3 +1,5 @@
+#![allow(unreachable_pub)]
+
 use crate::debug::WasmUnwrap;
 use crate::runtime::std_references::Reference;
 

@@ -1,3 +1,5 @@
+#![allow(bare_trait_objects)]
+
 use crate::ffi;
 
 use wasm_bindgen::prelude::*;

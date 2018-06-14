@@ -1,3 +1,5 @@
+#![allow(bare_trait_objects)]
+
 use super::builtin_blocks::{try_compile_block, BuiltinResult, CompileBlock};
 use crate::debug::WasmUnwrap;
 use crate::hir::*;
@@ -128,8 +130,8 @@ impl EncoderFrame<'encoder> {
         self.targets.push(LabelTarget { at, target });
     }
 
-    crate fn label(&mut self, name: &'static str, index: isize) {
-        self.labels.insert(name, index);
+    crate fn label(&mut self, name: &'static str) {
+        self.labels.insert(name, self.buffer.len() as isize);
     }
 
     crate fn patch(&mut self) {

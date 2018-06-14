@@ -1,3 +1,5 @@
+#![allow(bare_trait_objects)]
+
 use crate::compiler::{DynamicAttr, Opcode, StaticAttr};
 use crate::program::Program;
 use crate::runtime::reference::ReferenceTrait;

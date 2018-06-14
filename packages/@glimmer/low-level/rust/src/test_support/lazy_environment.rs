@@ -1,3 +1,5 @@
+#![allow(bare_trait_objects)]
+
 use super::render_result::RenderResult;
 
 use crate::compiler::{ProgramCompiler, ProgramTemplate};

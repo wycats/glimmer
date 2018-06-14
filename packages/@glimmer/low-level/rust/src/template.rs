@@ -1,3 +1,5 @@
+#![allow(bare_trait_objects)]
+
 use crate::hir::Statement;
 use crate::parse::parse;
 use crate::program::VMHandle;

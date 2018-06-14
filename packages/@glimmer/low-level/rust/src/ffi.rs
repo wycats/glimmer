@@ -1,3 +1,5 @@
+#![allow(bare_trait_objects)]
+
 //! Definitions provided when this wasm module is instantiated by glimmer
 
 use crate::runtime::validator::ValidatorTrait;

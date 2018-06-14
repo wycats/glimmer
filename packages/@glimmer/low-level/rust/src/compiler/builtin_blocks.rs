@@ -1,4 +1,4 @@
-use super::opcode_compiler::{EncoderFrame, Opcode};
+use super::opcode_compiler::{EncoderFrame, Opcode, RelativeJump};
 use crate::debug::WasmUnwrap;
 use crate::hir::{Call, InlineBlock};
 
@@ -39,7 +39,10 @@ fn compile_if(compile_block: &CompileBlock, encoder: &mut EncoderFrame) -> Built
             encoder.push(Opcode::ToBoolean);
             1
         },
-        |encoder| encoder.compile_block(&compile_block.default().statements),
+        |encoder| {
+            encoder.push(Opcode::Jump(RelativeJump::JumpUnless(-1)));
+            encoder.compile_block(&compile_block.default().statements)
+        },
     );
 
     BuiltinResult::Compiled

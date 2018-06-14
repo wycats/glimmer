@@ -1,3 +1,4 @@
+use crate::update::UpdateProgram;
 use crate::vm::cursor::Cursor;
 use crate::vm::element::{DOMElementBuilder, ElementBuilder};
 use crate::vm::stack::Stack;
@@ -21,6 +22,7 @@ crate struct VmState {
     crate builder: Box<dyn ElementBuilder>,
     crate stack: Stack,
     crate registers: Registers,
+    crate update: UpdateProgram,
 }
 
 impl fmt::Debug for VmState {
@@ -57,7 +59,7 @@ impl VmState {
         self.registers.pc
     }
 
-    crate fn builder(&mut self) -> &mut ElementBuilder {
+    crate fn builder(&mut self) -> &mut dyn ElementBuilder {
         &mut *self.builder
     }
 
@@ -66,6 +68,7 @@ impl VmState {
             builder: DOMElementBuilder::browser(root),
             stack: Stack::new(),
             registers: Registers::new(pc),
+            update: UpdateProgram::new(),
         }
     }
 

@@ -1,3 +1,5 @@
+#![allow(bare_trait_objects)]
+
 use crate::compiler::Opcode;
 
 use itertools::Itertools;

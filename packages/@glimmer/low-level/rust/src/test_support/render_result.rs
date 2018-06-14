@@ -1,3 +1,5 @@
+#![allow(bare_trait_objects)]
+
 use super::lazy_environment::LazyTestEnvironment;
 
 use wasm_bindgen::prelude::*;

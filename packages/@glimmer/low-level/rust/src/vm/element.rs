@@ -132,7 +132,7 @@ impl ElementBuilder for DOMElementBuilder {
         self.delegate.progress()
     }
 
-    fn inner(&mut self) -> (&mut ElementBuilderDelegate, &mut ffi::DOMTree) {
+    fn inner(&mut self) -> (&mut dyn ElementBuilderDelegate, &mut ffi::DOMTree) {
         let delegate = &mut self.delegate;
         let tree = &mut self.tree;
 
@@ -143,7 +143,7 @@ impl ElementBuilder for DOMElementBuilder {
 pub trait ElementBuilder: fmt::Debug {
     fn progress(&self) -> DebugProgress;
 
-    fn inner(&mut self) -> (&mut ElementBuilderDelegate, &mut ffi::DOMTree);
+    fn inner(&mut self) -> (&mut dyn ElementBuilderDelegate, &mut ffi::DOMTree);
 
     fn open_element(&mut self, tag: &str) {
         let (delegate, tree) = self.inner();
