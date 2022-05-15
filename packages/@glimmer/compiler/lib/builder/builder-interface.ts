@@ -206,9 +206,13 @@ export function normalizeSugaryArrayStatement(
     }
 
     case '#': {
-      let { head: path, params, hash, blocks, blockParams } = normalizeBuilderBlockStatement(
-        statement as BuilderBlockStatement
-      );
+      let {
+        head: path,
+        params,
+        hash,
+        blocks,
+        blockParams,
+      } = normalizeBuilderBlockStatement(statement as BuilderBlockStatement);
 
       return {
         kind: HeadKind.Block,
@@ -439,9 +443,10 @@ export function normalizeBuilderBlockStatement(
   };
 }
 
-function normalizeBlockHash(
-  hash: BuilderBlockHash
-): { hash: Option<NormalizedHash>; blockParams: Option<string[]> } {
+function normalizeBlockHash(hash: BuilderBlockHash): {
+  hash: Option<NormalizedHash>;
+  blockParams: Option<string[]>;
+} {
   if (hash === null) {
     return { hash: null, blockParams: null };
   }

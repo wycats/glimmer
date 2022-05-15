@@ -43,7 +43,7 @@ EXPRESSIONS.add(SexpOpcodes.GetSymbol, (op, [, sym, path]) => {
   withPath(op, path);
 });
 
-EXPRESSIONS.add(SexpOpcodes.GetTemplateSymbol, (op, [, sym, path]) => {
+EXPRESSIONS.add(SexpOpcodes.GetEmbedderSymbol, (op, [, sym, path]) => {
   op(HighLevelResolutionOpcode.ResolveTemplateLocal, sym, (handle: number) => {
     op(Op.ConstantReference, handle);
     withPath(op, path);

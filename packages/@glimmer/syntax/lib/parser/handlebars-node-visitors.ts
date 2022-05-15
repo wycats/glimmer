@@ -3,12 +3,11 @@ import { TokenizerState } from 'simple-html-tokenizer';
 
 import { Parser, ParserNodeBuilder, Tag } from '../parser';
 import { NON_EXISTENT_LOCATION } from '../source/location';
-import { generateSyntaxError } from '../syntax-error';
+import { generateSyntaxError, GlimmerSyntaxError } from '../syntax-error';
 import { appendChild, isHBSLiteral, printLiteral } from '../utils';
 import * as ASTv1 from '../v1/api';
 import * as HBS from '../v1/handlebars-ast';
-import { PathExpressionImplV1 } from '../v1/legacy-interop';
-import b from '../v1/parser-builders';
+import { Phase1Builder } from '../v1/parser-builders';
 
 export abstract class HandlebarsNodeVisitors extends Parser {
   abstract appendToCommentData(s: string): void;
@@ -26,14 +25,16 @@ export abstract class HandlebarsNodeVisitors extends Parser {
     let body: ASTv1.Statement[] = [];
     let node;
 
+    this.pushScope(program.blockParams ?? []);
+
     if (this.isTopLevel) {
-      node = b.template({
+      node = this.builder.template({
         body,
         blockParams: program.blockParams,
         loc: this.source.spanFor(program.loc),
       });
     } else {
-      node = b.blockItself({
+      node = this.builder.blockItself({
         body,
         blockParams: program.blockParams,
         chained: program.chained,
@@ -59,8 +60,13 @@ export abstract class HandlebarsNodeVisitors extends Parser {
     if (poppedNode !== node) {
       let elementNode = poppedNode as ASTv1.ElementNode;
 
-      throw generateSyntaxError(`Unclosed element \`${elementNode.tag}\``, elementNode.loc);
+      throw GlimmerSyntaxError.from(
+        ['elements.unclosed-element', elementNode.tag],
+        elementNode.loc.sliceStartChars({ skipStart: 1, chars: elementNode.tag.length })
+      );
     }
+
+    this.popScope();
 
     return node;
   }
@@ -95,7 +101,7 @@ export abstract class HandlebarsNodeVisitors extends Parser {
     let program = this.Program(block.program);
     let inverse = block.inverse ? this.Program(block.inverse) : null;
 
-    let node = b.block({
+    let node = this.builder.block({
       path,
       params,
       hash,
@@ -124,10 +130,10 @@ export abstract class HandlebarsNodeVisitors extends Parser {
     let { escaped, loc, strip } = rawMustache;
 
     if (isHBSLiteral(rawMustache.path)) {
-      mustache = b.mustache({
+      mustache = this.builder.mustache({
         path: this.acceptNode<ASTv1.Literal>(rawMustache.path),
         params: [],
-        hash: b.hash([], this.source.spanFor(rawMustache.path.loc).collapse('end')),
+        hash: this.builder.hash([], this.source.spanFor(rawMustache.path.loc).collapse('end')),
         trusting: !escaped,
         loc: this.source.spanFor(loc),
         strip,
@@ -139,7 +145,7 @@ export abstract class HandlebarsNodeVisitors extends Parser {
           path: HBS.PathExpression | HBS.SubExpression;
         }
       );
-      mustache = b.mustache({
+      mustache = this.builder.mustache({
         path,
         params,
         hash,
@@ -156,17 +162,17 @@ export abstract class HandlebarsNodeVisitors extends Parser {
         throw generateSyntaxError(`Cannot use mustaches in an elements tagname`, mustache.loc);
 
       case TokenizerState.beforeAttributeName:
-        addElementModifier(this.currentStartTag, mustache);
+        addElementModifier(this.currentStartTag, mustache, this.builder);
         break;
       case TokenizerState.attributeName:
       case TokenizerState.afterAttributeName:
         this.beginAttributeValue(false);
         this.finishAttributeValue();
-        addElementModifier(this.currentStartTag, mustache);
+        addElementModifier(this.currentStartTag, mustache, this.builder);
         tokenizer.transitionTo(TokenizerState.beforeAttributeName);
         break;
       case TokenizerState.afterAttributeValueQuoted:
-        addElementModifier(this.currentStartTag, mustache);
+        addElementModifier(this.currentStartTag, mustache, this.builder);
         tokenizer.transitionTo(TokenizerState.beforeAttributeName);
         break;
 
@@ -227,7 +233,7 @@ export abstract class HandlebarsNodeVisitors extends Parser {
     }
 
     let { value, loc } = rawComment;
-    let comment = b.mustacheComment(value, this.source.spanFor(loc));
+    let comment = this.builder.mustacheComment(value, this.source.spanFor(loc));
 
     switch (tokenizer.state) {
       case TokenizerState.beforeAttributeName:
@@ -280,7 +286,7 @@ export abstract class HandlebarsNodeVisitors extends Parser {
 
   SubExpression(sexpr: HBS.SubExpression): ASTv1.SubExpression {
     let { path, params, hash } = acceptCallNodes(this, sexpr);
-    return b.sexpr({ path, params, hash, loc: this.source.spanFor(sexpr.loc) });
+    return this.builder.sexpr({ path, params, hash, loc: this.source.spanFor(sexpr.loc) });
   }
 
   PathExpression(path: HBS.PathExpression): ASTv1.PathExpression {
@@ -369,17 +375,16 @@ export abstract class HandlebarsNodeVisitors extends Parser {
         );
       }
 
-      pathHead = {
-        type: 'VarHead',
-        name: head,
-        loc: {
+      pathHead = this.builder.head(
+        head,
+        this.source.spanFor({
           start: path.loc.start,
           end: { line: path.loc.start.line, column: path.loc.start.column + head.length },
-        },
-      };
+        })
+      );
     }
 
-    return new PathExpressionImplV1(path.original, pathHead, parts, this.source.spanFor(path.loc));
+    return this.builder.path({ head: pathHead, tail: parts, loc: this.source.spanFor(path.loc) });
   }
 
   Hash(hash: HBS.Hash): ASTv1.Hash {
@@ -388,7 +393,7 @@ export abstract class HandlebarsNodeVisitors extends Parser {
     for (let i = 0; i < hash.pairs.length; i++) {
       let pair = hash.pairs[i];
       pairs.push(
-        b.pair({
+        this.builder.pair({
           key: pair.key,
           value: this.acceptNode(pair.value),
           loc: this.source.spanFor(pair.loc),
@@ -396,27 +401,27 @@ export abstract class HandlebarsNodeVisitors extends Parser {
       );
     }
 
-    return b.hash(pairs, this.source.spanFor(hash.loc));
+    return this.builder.hash(pairs, this.source.spanFor(hash.loc));
   }
 
   StringLiteral(string: HBS.StringLiteral): ASTv1.StringLiteral {
-    return b.literal({ type: 'StringLiteral', value: string.value, loc: string.loc });
+    return this.builder.literal({ type: 'StringLiteral', value: string.value, loc: string.loc });
   }
 
   BooleanLiteral(boolean: HBS.BooleanLiteral): ASTv1.BooleanLiteral {
-    return b.literal({ type: 'BooleanLiteral', value: boolean.value, loc: boolean.loc });
+    return this.builder.literal({ type: 'BooleanLiteral', value: boolean.value, loc: boolean.loc });
   }
 
   NumberLiteral(number: HBS.NumberLiteral): ASTv1.NumberLiteral {
-    return b.literal({ type: 'NumberLiteral', value: number.value, loc: number.loc });
+    return this.builder.literal({ type: 'NumberLiteral', value: number.value, loc: number.loc });
   }
 
   UndefinedLiteral(undef: HBS.UndefinedLiteral): ASTv1.UndefinedLiteral {
-    return b.literal({ type: 'UndefinedLiteral', value: undefined, loc: undef.loc });
+    return this.builder.literal({ type: 'UndefinedLiteral', value: undefined, loc: undef.loc });
   }
 
   NullLiteral(nul: HBS.NullLiteral): ASTv1.NullLiteral {
-    return b.literal({ type: 'NullLiteral', value: null, loc: nul.loc });
+    return this.builder.literal({ type: 'NullLiteral', value: null, loc: nul.loc });
   }
 }
 
@@ -482,7 +487,7 @@ function acceptCallNodes(
   hash: ASTv1.Hash;
 } {
   if (node.path.type.endsWith('Literal')) {
-    const path = (node.path as unknown) as
+    const path = node.path as unknown as
       | HBS.StringLiteral
       | HBS.UndefinedLiteral
       | HBS.NullLiteral
@@ -512,7 +517,7 @@ function acceptCallNodes(
   let path =
     node.path.type === 'PathExpression'
       ? compiler.PathExpression(node.path)
-      : compiler.SubExpression((node.path as unknown) as HBS.SubExpression);
+      : compiler.SubExpression(node.path as unknown as HBS.SubExpression);
   let params = node.params ? node.params.map((e) => compiler.acceptNode<ASTv1.Expression>(e)) : [];
 
   // if there is no hash, position it as a collapsed node immediately after the last param (or the
@@ -532,7 +537,8 @@ function acceptCallNodes(
 
 function addElementModifier(
   element: ParserNodeBuilder<Tag<'StartTag'>>,
-  mustache: ASTv1.MustacheStatement
+  mustache: ASTv1.MustacheStatement,
+  builder: Phase1Builder
 ) {
   let { path, params, hash, loc } = mustache;
 
@@ -543,6 +549,6 @@ function addElementModifier(
     throw generateSyntaxError(`In ${tag}, ${modifier} is not a valid modifier`, mustache.loc);
   }
 
-  let modifier = b.elementModifier({ path, params, hash, loc });
+  let modifier = builder.elementModifier({ path, params, hash, loc });
   element.modifiers.push(modifier);
 }

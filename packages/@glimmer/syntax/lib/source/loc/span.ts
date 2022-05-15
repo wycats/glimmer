@@ -11,6 +11,7 @@ import {
 } from '../location';
 import { SourceSlice } from '../slice';
 import { Source } from '../source';
+import { format, FormatSpan } from './format';
 import { IsInvisible, match, MatchAny, MatchFn } from './match';
 import {
   AnyPosition,
@@ -32,6 +33,11 @@ interface SpanData {
    * Convert this span into a string. If the span is broken, return `''`.
    */
   asString(): string;
+
+  /**
+   * The original `Source` containing this span, if available.
+   */
+  getSource(): Source | null;
 
   /**
    * Gets the module the span was located in.
@@ -208,6 +214,23 @@ export class SourceSpan implements SourceLocation {
     return this.data.asString();
   }
 
+  asAnnotatedString(): string {
+    const source = this.data.getSource();
+
+    if (source === null) {
+      return format(this.asString());
+    }
+
+    const loc = this.loc;
+    const lines = source.lines;
+
+    if (loc === BROKEN_LOCATION || lines === null) {
+      return format(this.asString());
+    }
+
+    return new FormatSpan(lines, this, loc).format();
+  }
+
   /**
    * Convert this `SourceSpan` into a `SourceSlice`. In debug mode, this method optionally checks
    * that the byte offsets represented by this `SourceSpan` actually correspond to the expected
@@ -299,12 +322,28 @@ export class SourceSpan implements SourceLocation {
     return span(this.getStart().move(skipStart).data, this.getEnd().move(-skipEnd).data);
   }
 
+  splitAt(
+    options: { fromStart: number } | { fromEnd: number }
+  ): [first: SourceSpan, second: SourceSpan] {
+    if ('fromStart' in options) {
+      return [
+        this.sliceStartChars({ chars: options.fromStart }),
+        this.slice({ skipStart: options.fromStart }),
+      ];
+    } else {
+      return [
+        this.slice({ skipEnd: options.fromEnd }),
+        this.sliceEndChars({ chars: options.fromEnd }),
+      ];
+    }
+  }
+
   sliceStartChars({ skipStart = 0, chars }: { skipStart?: number; chars: number }): SourceSpan {
     return span(this.getStart().move(skipStart).data, this.getStart().move(skipStart + chars).data);
   }
 
   sliceEndChars({ skipEnd = 0, chars }: { skipEnd?: number; chars: number }): SourceSpan {
-    return span(this.getEnd().move(skipEnd - chars).data, this.getStart().move(-skipEnd).data);
+    return span(this.getEnd().move(skipEnd - chars).data, this.getEnd().move(-skipEnd).data);
   }
 }
 
@@ -322,6 +361,10 @@ class CharPositionSpan implements SpanData {
 
   wrap(): SourceSpan {
     return new SourceSpan(this);
+  }
+
+  getSource(): Source | null {
+    return this.source;
   }
 
   asString(): string {
@@ -401,6 +444,10 @@ export class HbsSpan implements SpanData {
     providedHbsLoc: SourceLocation | null = null
   ) {
     this._providedHbsLoc = providedHbsLoc;
+  }
+
+  getSource(): Source | null {
+    return this.source;
   }
 
   serialize(): SerializedConcreteSourceSpan {
@@ -504,6 +551,10 @@ class InvisibleSpan implements SpanData {
       case OffsetKind.InternalsSynthetic:
         return this.string || '';
     }
+  }
+
+  getSource(): Source | null {
+    return null;
   }
 
   wrap(): SourceSpan {

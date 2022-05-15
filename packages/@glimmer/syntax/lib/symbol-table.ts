@@ -2,18 +2,19 @@ import { Core, Dict, SexpOpcodes } from '@glimmer/interfaces';
 import { dict } from '@glimmer/util';
 
 import { ASTv2 } from '..';
+import { EmbedderLocals } from './parser/preprocess';
 import { isUpperCase } from './utils';
 
 export abstract class SymbolTable {
   static top(
-    locals: string[],
+    locals: EmbedderLocals,
     customizeComponentName: (input: string) => string
   ): ProgramSymbolTable {
     return new ProgramSymbolTable(locals, customizeComponentName);
   }
 
   abstract has(name: string): boolean;
-  abstract get(name: string): [symbol: number, isRoot: boolean];
+  abstract get(name: string): number;
 
   abstract getLocalsMap(): Dict<number>;
   abstract getEvalInfo(): Core.EvalInfo;
@@ -33,7 +34,7 @@ export abstract class SymbolTable {
 
 export class ProgramSymbolTable extends SymbolTable {
   constructor(
-    private templateLocals: string[],
+    private embedderHasBinding: EmbedderLocals,
     private customizeComponentName: (input: string) => string
   ) {
     super();
@@ -45,12 +46,12 @@ export class ProgramSymbolTable extends SymbolTable {
   private size = 1;
   private named = dict<number>();
   private blocks = dict<number>();
-  private usedTemplateLocals: string[] = [];
+  private embedderLocals: string[] = [];
 
   _hasEval = false;
 
-  getUsedTemplateLocals(): string[] {
-    return this.usedTemplateLocals;
+  getEmbedderLocals(): string[] {
+    return this.embedderLocals;
   }
 
   setHasEval(): void {
@@ -62,19 +63,19 @@ export class ProgramSymbolTable extends SymbolTable {
   }
 
   has(name: string): boolean {
-    return this.templateLocals.indexOf(name) !== -1;
+    return this.embedderHasBinding(name);
   }
 
-  get(name: string): [number, boolean] {
-    let index = this.usedTemplateLocals.indexOf(name);
+  get(name: string): number {
+    let index = this.embedderLocals.indexOf(name);
 
     if (index !== -1) {
-      return [index, true];
+      return index;
     }
 
-    index = this.usedTemplateLocals.length;
-    this.usedTemplateLocals.push(name);
-    return [index, true];
+    index = this.embedderLocals.length;
+    this.embedderLocals.push(name);
+    return index;
   }
 
   getLocalsMap(): Dict<number> {
@@ -105,6 +106,17 @@ export class ProgramSymbolTable extends SymbolTable {
 
     index = this.upvars.length;
     this.upvars.push(name);
+    return index;
+  }
+
+  allocateEmbedder(name: string): number {
+    let index = this.embedderLocals.indexOf(name);
+
+    if (index === -1) {
+      index = this.embedderLocals.length;
+      this.embedderLocals.push(name);
+    }
+
     return index;
   }
 
@@ -151,14 +163,14 @@ export class BlockSymbolTable extends SymbolTable {
     return this.symbols.indexOf(name) !== -1 || this.parent.has(name);
   }
 
-  get(name: string): [number, boolean] {
+  get(name: string): number {
     let slot = this.symbols.indexOf(name);
-    return slot === -1 ? this.parent.get(name) : [this.slots[slot], false];
+    return slot === -1 ? this.parent.get(name) : this.slots[slot];
   }
 
   getLocalsMap(): Dict<number> {
     let dict = this.parent.getLocalsMap();
-    this.symbols.forEach((symbol) => (dict[symbol] = this.get(symbol)[0]));
+    this.symbols.forEach((symbol) => (dict[symbol] = this.get(symbol)));
     return dict;
   }
 

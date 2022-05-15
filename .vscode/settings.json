@@ -6,7 +6,7 @@
   "files.exclude": {
     "**/.DS_Store": true,
     "**/.git": true,
-    "node_modules/**": true,
+    "**/node_modules/**": true,
     "tmp/**": true
   },
   "files.watcherExclude": {
@@ -21,12 +21,16 @@
   "editor.renderWhitespace": "boundary",
   "editor.insertSpaces": true,
   "editor.tabSize": 2,
-  "editor.formatOnSave": true,
-  "editor.defaultFormatter": "dbaeumer.vscode-eslint",
+  "editor.formatOnSave": false,
+  "editor.codeActionsOnSave": {
+    "source.fixAll": true,
+    "source.organizeImports": false,
+  },
   "typescript.tsc.autoDetect": "on",
   "javascript.updateImportsOnFileMove.enabled": "always",
   "typescript.preferences.importModuleSpecifier": "relative",
   "javascript.preferences.importModuleSpecifier": "relative",
+  "typescript.preferences.importModuleSpecifierEnding": "index",
   "typescript.tsdk": "node_modules/typescript/lib",
   "typescript.workspaceSymbols.scope": "currentProject",
   "eslint.workingDirectories": [

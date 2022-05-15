@@ -1,16 +1,18 @@
 import { Option } from '@glimmer/interfaces';
-import { assert, assign, expect } from '@glimmer/util';
+import { assert, assign, expect, Stack } from '@glimmer/util';
 import {
   EntityParser,
   EventedTokenizer,
   HTML5NamedCharRefs as namedCharRefs,
 } from 'simple-html-tokenizer';
 
+import { Scope } from './parser/scope';
 import { SourcePosition } from './source/location';
 import { Source } from './source/source';
 import { SourceOffset, SourceSpan } from './source/span';
 import * as ASTv1 from './v1/api';
 import * as HBS from './v1/handlebars-ast';
+import { Phase1Builder } from './v1/parser-builders';
 
 export type ParserNodeBuilder<N extends { loc: SourceSpan }> = Omit<N, 'loc'> & {
   loc: SourceOffset;
@@ -52,15 +54,30 @@ export abstract class Parser {
     >
   > = null;
   public tokenizer: EventedTokenizer;
+  #builderStack: Stack<Phase1Builder>;
 
-  constructor(
-    source: Source,
-    entityParser = new EntityParser(namedCharRefs),
-    mode: 'precompile' | 'codemod' = 'precompile'
-  ) {
+  constructor(source: Source, entityParser = new EntityParser(namedCharRefs)) {
     this.source = source;
-    this.lines = source.source.split(/(?:\r\n?|\n)/g);
-    this.tokenizer = new EventedTokenizer(this, entityParser, mode);
+    this.lines = (source.source ?? '').split(/(?:\r\n?|\n)/g);
+    this.tokenizer = new EventedTokenizer(this, entityParser, source.purpose);
+    this.#builderStack = new Stack([Phase1Builder.withScope(Scope.top(source.options))]);
+  }
+
+  pushScope(locals: string[]): void {
+    const current = this.builder;
+    this.#builderStack.push(current.child(locals));
+  }
+
+  popScope(): void {
+    if (this.#builderStack.isEmpty()) {
+      throw new Error('unbalanced scopes');
+    }
+
+    this.#builderStack.pop();
+  }
+
+  get builder(): Phase1Builder {
+    return this.#builderStack.current;
   }
 
   offset(): SourceOffset {
@@ -73,9 +90,9 @@ export abstract class Parser {
   }
 
   finish<T extends { loc: SourceSpan }>(node: ParserNodeBuilder<T>): T {
-    return (assign({}, node, {
+    return assign({}, node, {
       loc: node.loc.until(this.offset()),
-    } as const) as unknown) as T;
+    } as const) as unknown as T;
 
     // node.loc = node.loc.withEnd(end);
   }

@@ -14,9 +14,7 @@ declare function require(id: 'crypto'): Crypto;
 declare function require(id: string): unknown;
 
 interface Crypto {
-  createHash(
-    alg: 'sha1'
-  ): {
+  createHash(alg: 'sha1'): {
     update(src: string, encoding: 'utf8'): void;
     digest(encoding: 'base64'): string;
   };
@@ -67,11 +65,11 @@ const defaultOptions: PrecompileOptions = {
  * @return {string} a template javascript string
  */
 export function precompileJSON(
-  string: string,
+  content: string,
   options: PrecompileOptions = defaultOptions
 ): [block: SerializedTemplateBlock, usedLocals: string[]] {
-  let source = new Source(string, options.meta?.moduleName);
-  let [ast, locals] = normalize(source, options);
+  const source = Source.from(content, options);
+  let [ast, locals] = normalize(source);
   let block = pass0(source, ast, options.strictMode ?? false).mapOk((pass2In) => {
     return pass2(pass2In);
   });
@@ -120,7 +118,7 @@ export function precompile(
     moduleName: moduleName ?? '(unknown template module)',
     // lying to the type checker here because we're going to
     // replace it just below, after stringification
-    scope: (SCOPE_PLACEHOLDER as unknown) as null,
+    scope: SCOPE_PLACEHOLDER as unknown as null,
     isStrictMode: options.strictMode ?? false,
   };
 

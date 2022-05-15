@@ -1,24 +1,39 @@
+import { SYNTAX_ERRORS, SyntaxErrorName, VoidSyntaxErrorName } from './errors';
 import { SourceSpan } from './source/span';
 
-export interface GlimmerSyntaxError extends Error {
-  location: SourceSpan | null;
-  code: string | null;
+export type SymbolicSyntaxError =
+  | VoidSyntaxErrorName
+  | {
+      [P in keyof SYNTAX_ERRORS]: SYNTAX_ERRORS[P] extends (arg: infer Arg) => string
+        ? [P, Arg]
+        : never;
+    }[keyof SYNTAX_ERRORS];
+
+export class GlimmerSyntaxError extends SyntaxError {
+  static from(error: SymbolicSyntaxError, span: SourceSpan): GlimmerSyntaxError {
+    return new GlimmerSyntaxError(symbolicMessage(error), span);
+  }
+
+  readonly code: string;
+  readonly location: SourceSpan;
+
+  constructor(message: string, span: SourceSpan) {
+    super(`${message}: ${span.asAnnotatedString()}`);
+    this.code = span.asString();
+    this.location = span;
+  }
 }
 
 export function generateSyntaxError(message: string, location: SourceSpan): GlimmerSyntaxError {
-  let { module, loc } = location;
-  let { line, column } = loc.start;
+  return new GlimmerSyntaxError(message, location);
+}
 
-  let code = location.asString();
-  let quotedCode = code ? `\n\n|\n|  ${code.split('\n').join('\n|  ')}\n|\n\n` : '';
-
-  let error = new Error(
-    `${message}: ${quotedCode}(error occurred in '${module}' @ line ${line} : column ${column})`
-  ) as GlimmerSyntaxError;
-
-  error.name = 'SyntaxError';
-  error.location = location;
-  error.code = code;
-
-  return error;
+export function symbolicMessage(error: SymbolicSyntaxError | string): string {
+  if (Array.isArray(error)) {
+    return SYNTAX_ERRORS[error[0]](error[1]);
+  } else if (error in SYNTAX_ERRORS) {
+    return SYNTAX_ERRORS[error as VoidSyntaxErrorName];
+  } else {
+    return error;
+  }
 }

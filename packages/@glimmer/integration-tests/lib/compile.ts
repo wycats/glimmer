@@ -33,7 +33,7 @@ export function createTemplate(
 }
 
 export function syntaxErrorFor(
-  message: string,
+  syntaxError: string,
   code: string,
   moduleName: string,
   line: number,
@@ -42,7 +42,7 @@ export function syntaxErrorFor(
   let quotedCode = code ? `\n\n|\n|  ${code.split('\n').join('\n|  ')}\n|\n\n` : '';
 
   let error = new Error(
-    `${message}: ${quotedCode}(error occurred in '${moduleName}' @ line ${line} : column ${column})`
+    `${syntaxError}: ${quotedCode}(error occurred in '${moduleName}' @ line ${line} : column ${column})`
   );
 
   error.name = 'SyntaxError';

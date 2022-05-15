@@ -30,7 +30,7 @@ function makeResolutionTypeVerifier(typeToVerify: SexpOpcodes) {
 
     return (
       type === SexpOpcodes.GetStrictFree ||
-      type === SexpOpcodes.GetTemplateSymbol ||
+      type === SexpOpcodes.GetEmbedderSymbol ||
       type === typeToVerify
     );
   };
@@ -82,7 +82,7 @@ function assertResolverInvariants(meta: ContainingMetadata): ResolvedContainingM
     }
   }
 
-  return (meta as unknown) as ResolvedContainingMetadata;
+  return meta as unknown as ResolvedContainingMetadata;
 }
 
 /**
@@ -108,7 +108,7 @@ export function resolveComponent(
     );
   }
 
-  if (type === SexpOpcodes.GetTemplateSymbol) {
+  if (type === SexpOpcodes.GetEmbedderSymbol) {
     let { scopeValues, owner } = meta;
     let definition = expect(scopeValues, 'BUG: scopeValues must exist if template symbol is used')[
       expr[1]
@@ -150,7 +150,7 @@ export function resolveHelper(
 
   let type = expr[0];
 
-  if (type === SexpOpcodes.GetTemplateSymbol) {
+  if (type === SexpOpcodes.GetEmbedderSymbol) {
     let { scopeValues } = meta;
     let definition = expect(scopeValues, 'BUG: scopeValues must exist if template symbol is used')[
       expr[1]
@@ -192,7 +192,7 @@ export function resolveModifier(
 
   let type = expr[0];
 
-  if (type === SexpOpcodes.GetTemplateSymbol) {
+  if (type === SexpOpcodes.GetEmbedderSymbol) {
     let { scopeValues } = meta;
     let definition = expect(scopeValues, 'BUG: scopeValues must exist if template symbol is used')[
       expr[1]
@@ -242,7 +242,7 @@ export function resolveComponentOrHelper(
 
   let type = expr[0];
 
-  if (type === SexpOpcodes.GetTemplateSymbol) {
+  if (type === SexpOpcodes.GetEmbedderSymbol) {
     let { scopeValues, owner } = meta;
     let definition = expect(scopeValues, 'BUG: scopeValues must exist if template symbol is used')[
       expr[1]
@@ -341,7 +341,7 @@ export function resolveOptionalComponentOrHelper(
 
   let type = expr[0];
 
-  if (type === SexpOpcodes.GetTemplateSymbol) {
+  if (type === SexpOpcodes.GetEmbedderSymbol) {
     let { scopeValues, owner } = meta;
     let definition = expect(scopeValues, 'BUG: scopeValues must exist if template symbol is used')[
       expr[1]

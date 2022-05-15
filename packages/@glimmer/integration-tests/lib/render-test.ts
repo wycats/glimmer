@@ -1,16 +1,27 @@
+import { destroy } from '@glimmer/destroyable';
 import {
+  ComponentDefinitionState,
   Dict,
+  DynamicScope,
+  Helper,
   Maybe,
   Option,
   RenderResult,
-  Helper,
-  ComponentDefinitionState,
-  DynamicScope,
 } from '@glimmer/interfaces';
-import { ASTPluginBuilder } from '@glimmer/syntax';
-import { dirtyTagFor } from '@glimmer/validator';
+import { inTransaction } from '@glimmer/runtime';
+import {
+  ASTPluginBuilder,
+  GlimmerSyntaxError,
+  preprocess,
+  Source,
+  SourceSpan,
+  symbolicMessage,
+  SymbolicSyntaxError,
+} from '@glimmer/syntax';
 import { assert, clearElement, dict, expect } from '@glimmer/util';
+import { dirtyTagFor } from '@glimmer/validator';
 import { SimpleElement, SimpleNode } from '@simple-dom/interface';
+import { syntaxErrorFor } from './compile';
 import {
   ComponentBlueprint,
   ComponentKind,
@@ -24,8 +35,6 @@ import { UserHelper } from './helpers';
 import { TestModifierConstructor } from './modifiers';
 import RenderDelegate from './render-delegate';
 import { equalTokens, isServerMarker, NodesSnapshot, normalizeSnapshot } from './snapshot';
-import { destroy } from '@glimmer/destroyable';
-import { inTransaction } from '@glimmer/runtime';
 
 export interface IRenderTest {
   readonly count: Count;
@@ -109,6 +118,55 @@ export class RenderTest implements IRenderTest {
     }
 
     return invocation;
+  }
+
+  syntaxError(source: string, error: SymbolicSyntaxError) {
+    const open = source.indexOf('~#');
+
+    if (open === -1) {
+      throw new Error(`Expected to find a ~# in ${source}`);
+    }
+
+    const secondOpen = source.indexOf('~#', open + 1);
+
+    if (secondOpen !== -1) {
+      throw Error(`Expected only one ~# in ${source}`);
+    }
+
+    const close = source.indexOf('#~');
+
+    if (close === -1) {
+      throw new Error(`Expected to find a #~ in ${source}`);
+    }
+
+    const secondClose = source.indexOf('#~', close + 1);
+
+    if (secondClose !== -1) {
+      throw Error(`Expected only one #~ in ${source}`);
+    }
+
+    const before = source.slice(0, open);
+    const after = source.slice(close + 2);
+    const at = source.slice(open + 2, close);
+
+    const unannotatedSource = `${before}${at}${after}`;
+
+    const loc = SourceSpan.forCharPositions(
+      Source.from(unannotatedSource, { meta: { moduleName: 'test-module' } }),
+      open,
+      open + at.length
+    );
+
+    const expected = GlimmerSyntaxError.from(error, loc);
+
+    this.assert.throws(
+      () => {
+        preprocess(unannotatedSource, { meta: { moduleName: 'test-module' } });
+      },
+      expected,
+
+      `Source: ${unannotatedSource}\n\nError: ${symbolicMessage(error)}`
+    );
   }
 
   private buildArgs(args: Dict): string {

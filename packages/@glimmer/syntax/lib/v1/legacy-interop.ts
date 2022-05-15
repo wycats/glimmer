@@ -1,14 +1,23 @@
+import { Scope } from '../parser/scope';
 import { SourceSpan } from '../source/span';
 import { PathExpression, PathHead } from './nodes-v1';
-import b from './public-builders';
+import { Phase1Builder } from './parser-builders';
 
 export class PathExpressionImplV1 implements PathExpression {
   type: 'PathExpression' = 'PathExpression';
   public parts: string[];
   public this = false;
   public data = false;
+  private scope: Scope;
+  private builder: Phase1Builder;
 
-  constructor(public original: string, head: PathHead, tail: string[], public loc: SourceSpan) {
+  constructor(
+    public original: string,
+    head: PathHead,
+    tail: string[],
+    public loc: SourceSpan,
+    scope: Scope
+  ) {
     let parts = tail.slice();
 
     if (head.type === 'ThisHead') {
@@ -21,14 +30,16 @@ export class PathExpressionImplV1 implements PathExpression {
     }
 
     this.parts = parts;
+    this.scope = scope;
+    this.builder = Phase1Builder.withScope(this.scope);
   }
 
   // Cache for the head value.
-  _head?: PathHead = undefined;
+  #head?: PathHead = undefined;
 
   get head(): PathHead {
-    if (this._head) {
-      return this._head;
+    if (this.#head) {
+      return this.#head;
     }
 
     let firstPart: string;
@@ -43,12 +54,26 @@ export class PathExpressionImplV1 implements PathExpression {
 
     let firstPartLoc = this.loc.collapse('start').sliceStartChars({
       chars: firstPart.length,
-    }).loc;
+    });
 
-    return (this._head = b.head(firstPart, firstPartLoc));
+    return (this.#head = this.builder.head(firstPart, firstPartLoc));
   }
 
   get tail(): string[] {
     return this.this ? this.parts : this.parts.slice(1);
+  }
+
+  toJSON(): PathExpression {
+    return {
+      type: 'PathExpression',
+      original: this.original,
+      head: this.head,
+      tail: this.tail,
+
+      this: this.this,
+      parts: this.parts,
+      data: this.data,
+      loc: this.loc,
+    };
   }
 }

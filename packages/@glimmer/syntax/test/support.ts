@@ -39,5 +39,9 @@ export function astEqual(
   actual = normalizeNode(actual);
   expected = normalizeNode(expected);
 
-  QUnit.assert.deepEqual(actual, expected, message);
+  QUnit.assert.deepEqual(
+    JSON.parse(JSON.stringify(actual)),
+    JSON.parse(JSON.stringify(expected)),
+    message
+  );
 }

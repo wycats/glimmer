@@ -5,6 +5,7 @@ import { SourceSlice } from '../source/slice';
 import { SourceSpan } from '../source/span';
 import { SpanList } from '../source/span-list';
 import { BlockSymbolTable, ProgramSymbolTable, SymbolTable } from '../symbol-table';
+import { DeclaredAt } from '../v1/api';
 import * as ASTv2 from './api';
 
 export interface CallParts {
@@ -12,7 +13,7 @@ export interface CallParts {
   args: ASTv2.Args;
 }
 
-export class Builder {
+export class Phase2Builder {
   // TEMPLATE //
 
   template(
@@ -195,7 +196,7 @@ export class Builder {
   localVar(
     name: string,
     symbol: number,
-    isTemplateLocal: boolean,
+    declared: DeclaredAt,
     loc: SourceSpan
   ): ASTv2.VariableReference {
     assert(name !== 'this', `You called builders.var() with 'this'. Call builders.this instead`);
@@ -207,7 +208,7 @@ export class Builder {
     return new ASTv2.LocalVarReference({
       loc,
       name,
-      isTemplateLocal,
+      declared,
       symbol,
     });
   }
@@ -337,9 +338,9 @@ export interface BuildBaseElement {
 }
 
 export class BuildElement {
-  readonly builder: Builder;
+  readonly builder: Phase2Builder;
   constructor(readonly base: BuildBaseElement) {
-    this.builder = new Builder();
+    this.builder = new Phase2Builder();
   }
 
   simple(tag: SourceSlice, body: ASTv2.ContentNode[], loc: SourceSpan): ASTv2.SimpleElement {

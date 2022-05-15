@@ -79,12 +79,15 @@ export class ExpressionEncoder {
   }
 
   Local({
-    isTemplateLocal,
+    declared,
     symbol,
   }: ASTv2.LocalVarReference):
     | WireFormat.Expressions.GetSymbol
     | WireFormat.Expressions.GetTemplateSymbol {
-    return [isTemplateLocal ? SexpOpcodes.GetTemplateSymbol : SexpOpcodes.GetSymbol, symbol];
+    return [
+      declared === 'embedder' ? SexpOpcodes.GetEmbedderSymbol : SexpOpcodes.GetSymbol,
+      symbol,
+    ];
   }
 
   GetWithResolver({ symbol }: mir.GetWithResolver): WireFormat.Expressions.GetContextualFree {

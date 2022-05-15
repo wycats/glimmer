@@ -8,6 +8,7 @@ import {
   defineSimpleHelper,
   defineComponent,
 } from '../..';
+import { GlimmerSyntaxError } from '../../../syntax/index';
 
 class DynamicModifiersResolutionModeTest extends RenderTest {
   static suiteName = 'dynamic modifiers in resolution mode';

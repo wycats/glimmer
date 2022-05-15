@@ -203,6 +203,7 @@ export interface AtHead {
 export interface VarHead {
   type: 'VarHead';
   name: string;
+  declared: DeclaredAt;
   loc: SourceLocation;
 }
 
@@ -212,9 +213,12 @@ export interface FreeVarHead {
   loc: SourceLocation;
 }
 
+export type DeclaredAt = 'embedder' | 'internal' | 'free';
+
 export interface LocalVarHead {
   type: 'LocalVarHead';
   name: string;
+  from: DeclaredAt;
   loc: SourceLocation;
 }
 

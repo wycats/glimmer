@@ -50,7 +50,7 @@ export interface Position {
 export interface Program extends CommonNode {
   type: 'Program';
   body: Statement[];
-  blockParams: string[];
+  blockParams?: string[];
   chained?: boolean;
 }
 

@@ -1,5 +1,5 @@
 import { isKeyword } from './keywords';
-import { preprocess } from './parser/tokenizer-event-handlers';
+import { Source } from './source/source';
 import traverse from './traversal/traverse';
 import * as ASTv1 from './v1/api';
 
@@ -69,6 +69,22 @@ function addTokens(
   });
 }
 
+export function getEmbedderLocals(ast: ASTv1.Template): string[] {
+  const upvars: string[] = [];
+
+  traverse(ast, {
+    PathExpression(node) {
+      if (node.head.type === 'VarHead' && node.head.declared === 'embedder') {
+        if (!upvars.includes(node.head.name)) {
+          upvars.push(node.head.name);
+        }
+      }
+    },
+  });
+
+  return upvars;
+}
+
 /**
  * Parses and traverses a given handlebars html template to extract all template locals
  * referenced that could possible come from the praent scope. Can exclude known keywords
@@ -81,7 +97,7 @@ export function getTemplateLocals(
     includeKeywords: false,
   }
 ): string[] {
-  const ast = preprocess(html);
+  const ast = Source.from(html).preprocess();
   const tokensSet = new Set<string>();
   const scopedTokens: string[] = [];
 

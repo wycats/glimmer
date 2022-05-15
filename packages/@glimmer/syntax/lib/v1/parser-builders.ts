@@ -2,9 +2,12 @@ import { Dict, Option, PresentArray } from '@glimmer/interfaces';
 import { assert } from '@glimmer/util';
 
 import { ParserNodeBuilder } from '../parser';
-import { SourceLocation } from '../source/location';
+import { NormalizedPreprocessOptions } from '../parser/preprocess';
+import { Scope } from '../parser/scope';
+import { SourceLocation, SourcePosition } from '../source/location';
 import { SourceOffset, SourceSpan } from '../source/span';
 import * as ASTv1 from './api';
+import { DeclaredAt } from './api';
 import { PathExpressionImplV1 } from './legacy-interop';
 
 const DEFAULT_STRIP = {
@@ -18,8 +21,26 @@ const DEFAULT_STRIP = {
  * 1. Offering fewer different ways to instantiate nodes
  * 2. Mandating source locations
  */
-class Builders {
-  pos(line: number, column: number) {
+export class Phase1Builder {
+  static top(options: NormalizedPreprocessOptions, locals?: string[]): Phase1Builder {
+    return new Phase1Builder(Scope.top(options, locals));
+  }
+
+  static withScope(scope: Scope): Phase1Builder {
+    return new Phase1Builder(scope);
+  }
+
+  readonly #scope: Scope;
+
+  constructor(scope: Scope) {
+    this.#scope = scope;
+  }
+
+  child(locals: string[]): Phase1Builder {
+    return new Phase1Builder(this.#scope.child(locals));
+  }
+
+  pos(line: number, column: number): SourcePosition {
     return {
       line,
       column,
@@ -252,7 +273,7 @@ class Builders {
     let { original: originalHead } = headToString(head);
     let original = [...originalHead, ...tail].join('.');
 
-    return new PathExpressionImplV1(original, head, tail, loc);
+    return new PathExpressionImplV1(original, head, tail, loc, this.#scope);
   }
 
   head(head: string, loc: SourceSpan): ASTv1.PathHead {
@@ -290,8 +311,11 @@ class Builders {
       `You called builders.var() with '${name}'. Call builders.at('${name}') instead`
     );
 
+    const declared: DeclaredAt = this.#scope.declaration(name);
+
     return {
       type: 'VarHead',
+      declared,
       name,
       loc,
     };
@@ -416,4 +440,6 @@ function headToString(head: ASTv1.PathHead): { original: string; parts: string[]
   }
 }
 
-export default new Builders();
+export default function (options: NormalizedPreprocessOptions): Phase1Builder {
+  return new Phase1Builder(Scope.top(options));
+}

@@ -1,4 +1,5 @@
 import { SourceSlice } from '../../source/slice';
+import { DeclaredAt } from '../../v1/api';
 import { node } from './node';
 import type { FreeVarResolution } from './resolution';
 
@@ -18,7 +19,7 @@ export class ArgReference extends node('Arg').fields<{ name: SourceSlice; symbol
  */
 export class LocalVarReference extends node('Local').fields<{
   name: string;
-  isTemplateLocal: boolean;
+  declared: DeclaredAt;
   symbol: number;
 }>() {}
 

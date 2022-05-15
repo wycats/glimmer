@@ -63,8 +63,8 @@ export const enum SexpOpcodes {
   // Get
   // Get a local value via symbol
   GetSymbol = 30, // GetPath + 0-2,
-  // Template symbol are values that are in scope in the template in strict mode
-  GetTemplateSymbol = 32,
+  // Embedder symbols are values that are in scope in the template in strict mode
+  GetEmbedderSymbol = 32,
   // Free variables are only keywords in strict mode
   GetStrictFree = 31,
 
@@ -160,7 +160,7 @@ export namespace Expressions {
   export type Hash = Core.Hash;
 
   export type GetSymbol = [SexpOpcodes.GetSymbol, number];
-  export type GetTemplateSymbol = [SexpOpcodes.GetTemplateSymbol, number];
+  export type GetTemplateSymbol = [SexpOpcodes.GetEmbedderSymbol, number];
   export type GetStrictFree = [SexpOpcodes.GetStrictFree, number];
   export type GetFreeAsComponentOrHelperHeadOrThisFallback = [
     SexpOpcodes.GetFreeAsComponentOrHelperHeadOrThisFallback,
@@ -191,7 +191,7 @@ export namespace Expressions {
   export type GetVar = GetSymbol | GetTemplateSymbol | GetFree;
 
   export type GetPathSymbol = [SexpOpcodes.GetSymbol, number, Path];
-  export type GetPathTemplateSymbol = [SexpOpcodes.GetTemplateSymbol, number, Path];
+  export type GetPathTemplateSymbol = [SexpOpcodes.GetEmbedderSymbol, number, Path];
   export type GetPathStrictFree = [SexpOpcodes.GetStrictFree, number, Path];
   export type GetPathFreeAsComponentOrHelperHeadOrThisFallback = [
     SexpOpcodes.GetFreeAsComponentOrHelperHeadOrThisFallback,

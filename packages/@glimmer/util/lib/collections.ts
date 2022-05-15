@@ -14,10 +14,16 @@ export function isObject<T>(u: T): u is object & T {
 
 export class StackImpl<T> implements Stack<T> {
   private stack: T[];
-  public current: Option<T> = null;
+  public current: Option<T>;
 
   constructor(values: T[] = []) {
     this.stack = values;
+
+    if (values.length > 0) {
+      this.current = values[values.length - 1];
+    } else {
+      this.current = null;
+    }
   }
 
   public get size() {

@@ -10,6 +10,7 @@ QUnit.module('[glimmer-syntax] Parser - AST');
 
 test('a simple piece of content', function () {
   let t = 'some content';
+
   astEqual(t, b.program([b.text('some content')]));
 });
 

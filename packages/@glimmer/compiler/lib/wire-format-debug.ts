@@ -204,7 +204,7 @@ export default class WireFormatDebugger {
           }
         }
 
-        case Op.GetTemplateSymbol: {
+        case Op.GetEmbedderSymbol: {
           return ['get-template-symbol', opcode[1], opcode[2]];
         }
 
