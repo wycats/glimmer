@@ -1,4 +1,5 @@
 import { Source } from './index';
+import { SourceTemplate } from './source';
 import { SerializedSourceSpan, SourceSpan } from './span';
 
 export type SerializedSourceSlice<Chars extends string = string> = [
@@ -7,8 +8,8 @@ export type SerializedSourceSlice<Chars extends string = string> = [
 ];
 
 export class SourceSlice<Chars extends string = string> {
-  static synthetic<S extends string>(chars: S): SourceSlice<S> {
-    let offsets = SourceSpan.synthetic(chars);
+  static synthetic<S extends string>(template: SourceTemplate, chars: S): SourceSlice<S> {
+    let offsets = SourceSpan.synthetic(template, chars);
     return new SourceSlice({ loc: offsets, chars: chars });
   }
 

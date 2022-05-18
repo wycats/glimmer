@@ -1,6 +1,6 @@
 import { Dict, Option } from '@glimmer/interfaces';
 import { SafeString } from '@glimmer/runtime';
-import { castToBrowser, expect } from '@glimmer/util';
+import { castToBrowser, existing } from '@glimmer/util';
 import { SimpleElement } from '@simple-dom/interface';
 import {
   assertElement,
@@ -69,7 +69,7 @@ class AbstractRehydrationTests extends InitialRenderSuite {
   }
 
   assertExactServerOutput(_expected: string) {
-    let output = expect(
+    let output = existing(
       this.serverOutput,
       'must renderServerSide before calling assertServerOutput'
     );

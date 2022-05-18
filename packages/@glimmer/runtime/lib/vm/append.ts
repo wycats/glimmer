@@ -30,7 +30,7 @@ import {
   Reference,
   UNDEFINED_REFERENCE,
 } from '@glimmer/reference';
-import { assert, expect, LOCAL_LOGGER, Stack, unwrapHandle } from '@glimmer/util';
+import { assert, existing, LOCAL_LOGGER, Stack, unwrapHandle } from '@glimmer/util';
 import { beginTrackFrame, endTrackFrame, resetTracking } from '@glimmer/validator';
 import {
   $fp,
@@ -214,7 +214,7 @@ export default class VM implements PublicVM, InternalVM {
 
   loadValue<T>(register: Register | MachineRegister, value: T): void {
     if (isLowLevelRegister(register)) {
-      this[INNER_VM].loadRegister(register, (value as any) as number);
+      this[INNER_VM].loadRegister(register, value as any as number);
     }
 
     switch (register) {
@@ -390,7 +390,7 @@ export default class VM implements PublicVM, InternalVM {
 
   commitCacheGroup() {
     let opcodes = this.updating();
-    let guard = expect(this[STACKS].cache.pop(), 'VM BUG: Expected a cache group');
+    let guard = existing(this[STACKS].cache.pop(), 'VM BUG: Expected a cache group');
 
     let tag = endTrackFrame();
     opcodes.push(new EndTrackFrameOpcode(guard));
@@ -468,7 +468,7 @@ export default class VM implements PublicVM, InternalVM {
   }
 
   popUpdating(): UpdatingOpcode[] {
-    return expect(this[STACKS].updating.pop(), "can't pop an empty stack");
+    return existing(this[STACKS].updating.pop(), "can't pop an empty stack");
   }
 
   updateWith(opcode: UpdatingOpcode) {
@@ -476,11 +476,11 @@ export default class VM implements PublicVM, InternalVM {
   }
 
   listBlock(): ListBlockOpcode {
-    return expect(this[STACKS].list.current, 'expected a list block');
+    return existing(this[STACKS].list.current, 'expected a list block');
   }
 
   associateDestroyable(child: Destroyable): void {
-    let parent = expect(this[DESTROYABLE_STACK].current, 'Expected destructor parent');
+    let parent = existing(this[DESTROYABLE_STACK].current, 'Expected destructor parent');
     associateDestroyableChild(parent, child);
   }
 
@@ -489,7 +489,7 @@ export default class VM implements PublicVM, InternalVM {
   }
 
   updating(): UpdatingOpcode[] {
-    return expect(
+    return existing(
       this[STACKS].updating.current,
       'expected updating opcode on the updating opcode stack'
     );
@@ -500,11 +500,11 @@ export default class VM implements PublicVM, InternalVM {
   }
 
   scope(): Scope {
-    return expect(this[STACKS].scope.current, 'expected scope on the scope stack');
+    return existing(this[STACKS].scope.current, 'expected scope on the scope stack');
   }
 
   dynamicScope(): DynamicScope {
-    return expect(
+    return existing(
       this[STACKS].dynamicScope.current,
       'expected dynamic scope on the dynamic scope stack'
     );

@@ -1,7 +1,7 @@
 import { precompileJSON } from '@glimmer/compiler';
 import { SerializedTemplateWithLazyBlock, Template, TemplateFactory } from '@glimmer/interfaces';
 import { templateFactory } from '@glimmer/opcode-compiler';
-import { PrecompileOptions } from '@glimmer/syntax';
+import { optionsWithDefaultModule, PrecompileOptions } from '@glimmer/syntax';
 
 // TODO: This fundamentally has little to do with testing and
 // most tests should just use a more generic preprocess, extracted
@@ -18,13 +18,15 @@ export function createTemplate(
   scopeValues: Record<string, unknown> = {}
 ): TemplateFactory {
   options.locals = options.locals ?? Object.keys(scopeValues ?? {});
-  let [block, usedLocals] = precompileJSON(templateSource, options);
+  const id = String(templateId++);
+  const withModule = optionsWithDefaultModule(options, `(unknown ember template)`);
+  let [block, usedLocals] = precompileJSON(templateSource, withModule);
   let reifiedScopeValues = usedLocals.map((key) => scopeValues[key]);
 
   let templateBlock: SerializedTemplateWithLazyBlock = {
-    id: String(templateId++),
+    id: String(id),
     block: JSON.stringify(block),
-    moduleName: options.meta?.moduleName ?? '(unknown template module)',
+    moduleName: withModule.meta.moduleName,
     scope: reifiedScopeValues.length > 0 ? () => reifiedScopeValues : null,
     isStrictMode: options.strictMode ?? false,
   };

@@ -13,7 +13,7 @@ import {
   UpdatableBlock,
   ModifierInstance,
 } from '@glimmer/interfaces';
-import { assert, expect, Stack, symbol } from '@glimmer/util';
+import { assert, existing, Stack, symbol } from '@glimmer/util';
 import {
   AttrNamespace,
   SimpleComment,
@@ -127,12 +127,12 @@ export class NewElementBuilder implements ElementBuilder {
   }
 
   protected block(): LiveBlock {
-    return expect(this.blockStack.current, 'Expected a current live block');
+    return existing(this.blockStack.current, 'Expected a current live block');
   }
 
   popElement() {
     this[CURSOR_STACK].pop();
-    expect(this[CURSOR_STACK].current, "can't pop past the last element");
+    existing(this[CURSOR_STACK].current, "can't pop past the last element");
   }
 
   pushSimpleBlock(): LiveBlock {
@@ -164,7 +164,7 @@ export class NewElementBuilder implements ElementBuilder {
   popBlock(): LiveBlock {
     this.block().finalize(this);
     this.__closeBlock();
-    return expect(this.blockStack.pop(), 'Expected popBlock to return a block');
+    return existing(this.blockStack.pop(), 'Expected popBlock to return a block');
   }
 
   __openBlock(): void {}
@@ -184,7 +184,7 @@ export class NewElementBuilder implements ElementBuilder {
 
   flushElement(modifiers: Option<ModifierInstance[]>) {
     let parent = this.element;
-    let element = expect(
+    let element = existing(
       this.constructing,
       `flushElement should only be called when constructing an element`
     );
@@ -381,7 +381,7 @@ export class SimpleLiveBlock implements LiveBlock {
   }
 
   firstNode(): SimpleNode {
-    let first = expect(
+    let first = existing(
       this.first,
       'cannot call `firstNode()` while `SimpleLiveBlock` is still initializing'
     );
@@ -390,7 +390,7 @@ export class SimpleLiveBlock implements LiveBlock {
   }
 
   lastNode(): SimpleNode {
-    let last = expect(
+    let last = existing(
       this.last,
       'cannot call `lastNode()` while `SimpleLiveBlock` is still initializing'
     );
@@ -495,7 +495,7 @@ export class LiveBlockList implements LiveBlock {
   }
 
   firstNode(): SimpleNode {
-    let head = expect(
+    let head = existing(
       this.boundList[0],
       'cannot call `firstNode()` while `LiveBlockList` is still initializing'
     );
@@ -506,7 +506,7 @@ export class LiveBlockList implements LiveBlock {
   lastNode(): SimpleNode {
     let boundList = this.boundList;
 
-    let tail = expect(
+    let tail = existing(
       boundList[boundList.length - 1],
       'cannot call `lastNode()` while `LiveBlockList` is still initializing'
     );

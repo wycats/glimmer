@@ -1,4 +1,4 @@
-import { castToBrowser, expect, HAS_NATIVE_PROXY } from '@glimmer/util';
+import { castToBrowser, existing, HAS_NATIVE_PROXY } from '@glimmer/util';
 import { getInternalModifierManager } from '@glimmer/manager';
 import { on } from '@glimmer/runtime';
 
@@ -54,7 +54,7 @@ if (hasDom) {
     startingCounters: Counters = { adds: 0, removes: 0 };
 
     findButton(selector = 'button'): HTMLButtonElement {
-      return expect(
+      return existing(
         castToBrowser(this.element, 'div').querySelector(selector) as HTMLButtonElement,
         `BUG: expected to find ${selector}`
       );

@@ -6,7 +6,7 @@ import {
   Option,
   RenderNode,
 } from '@glimmer/interfaces';
-import { expect, assign, Stack } from '@glimmer/util';
+import { existing, assign, Stack } from '@glimmer/util';
 import { reifyArgs } from './vm/arguments';
 
 interface InternalRenderNode<T extends object> extends RenderNode {
@@ -53,7 +53,8 @@ export class Ref<T extends object> {
 }
 
 export default class DebugRenderTreeImpl<TBucket extends object>
-  implements DebugRenderTree<TBucket> {
+  implements DebugRenderTree<TBucket>
+{
   private stack = new Stack<TBucket>();
 
   private refs = new WeakMap<TBucket, Ref<TBucket>>();
@@ -88,7 +89,7 @@ export default class DebugRenderTreeImpl<TBucket extends object>
   }
 
   willDestroy(state: TBucket): void {
-    expect(this.refs.get(state), 'BUG: missing ref').release();
+    existing(this.refs.get(state), 'BUG: missing ref').release();
   }
 
   commit(): void {
@@ -110,7 +111,10 @@ export default class DebugRenderTreeImpl<TBucket extends object>
 
       // Clean up the root reference to prevent errors from happening if we
       // attempt to capture the render tree (Ember Inspector may do this)
-      let root = expect(this.stack.toArray()[0], 'expected root state when resetting render tree');
+      let root = existing(
+        this.stack.toArray()[0],
+        'expected root state when resetting render tree'
+      );
       let ref = this.refs.get(root);
 
       if (ref !== undefined) {
@@ -136,7 +140,7 @@ export default class DebugRenderTreeImpl<TBucket extends object>
   }
 
   private nodeFor(state: TBucket): InternalRenderNode<TBucket> {
-    return expect(this.nodes.get(state), 'BUG: missing node');
+    return existing(this.nodes.get(state), 'BUG: missing node');
   }
 
   private appendChild(node: InternalRenderNode<TBucket>, state: TBucket): void {
@@ -188,7 +192,7 @@ export default class DebugRenderTreeImpl<TBucket extends object>
   }
 
   private captureBounds(node: InternalRenderNode<TBucket>): CapturedRenderNode['bounds'] {
-    let bounds = expect(node.bounds, 'BUG: missing bounds');
+    let bounds = existing(node.bounds, 'BUG: missing bounds');
     let parentElement = bounds.parentElement();
     let firstNode = bounds.firstNode();
     let lastNode = bounds.lastNode();

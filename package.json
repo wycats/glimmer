@@ -40,7 +40,7 @@
     "yarn:unlink": "node bin/yarn-link-all --unlink"
   },
   "resolutions": {
-    "typescript": "4.0.2"
+    "typescript": "4.6.4"
   },
   "dependencies": {
     "@handlebars/parser": "~2.0.0",

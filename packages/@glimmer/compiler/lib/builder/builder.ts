@@ -8,7 +8,7 @@ import {
   VariableResolutionContext,
   WireFormat,
 } from '@glimmer/interfaces';
-import { assert, assertNever, dict, exhausted, expect, isPresent, values } from '@glimmer/util';
+import { assert, assertNever, dict, exhausted, existing, isPresent, values } from '@glimmer/util';
 import { AttrNamespace, Namespace } from '@simple-dom/interface';
 
 import {
@@ -322,14 +322,14 @@ function buildKeyword(
 
   switch (name) {
     case 'with':
-      return [Op.With, expect(params, 'with requires params')[0], block, inverse];
+      return [Op.With, existing(params, 'with requires params')[0], block, inverse];
     case 'if':
-      return [Op.If, expect(params, 'if requires params')[0], block, inverse];
+      return [Op.If, existing(params, 'if requires params')[0], block, inverse];
     case 'each':
       let keyExpr = normalized.hash ? normalized.hash['key'] : null;
       let key = keyExpr ? buildExpression(keyExpr, 'Strict', symbols) : null;
 
-      return [Op.Each, expect(params, 'if requires params')[0], key, block, inverse];
+      return [Op.Each, existing(params, 'if requires params')[0], key, block, inverse];
     default:
       throw new Error('unimplemented keyword');
   }

@@ -23,7 +23,7 @@ import {
   valueForRef,
 } from '@glimmer/reference';
 import { associateDestroyableChild, destroy, destroyChildren } from '@glimmer/destroyable';
-import { expect, Stack, logStep } from '@glimmer/util';
+import { existing, Stack, logStep } from '@glimmer/util';
 import { resetTracking, runInTrackingTransaction } from '@glimmer/validator';
 import { SimpleComment } from '@simple-dom/interface';
 import { clear, move as moveBounds } from '../bounds';
@@ -83,7 +83,7 @@ export default class UpdatingVMImpl implements UpdatingVM {
   }
 
   private get frame() {
-    return expect(this.frameStack.current, 'bug: expected a frame');
+    return existing(this.frameStack.current, 'bug: expected a frame');
   }
 
   goto(index: number) {
@@ -248,7 +248,7 @@ export class ListBlockOpcode extends BlockOpcode {
       dom.insertAfter(
         bounds.parentElement(),
         marker,
-        expect(bounds.lastNode(), "can't insert after an empty bounds")
+        existing(bounds.lastNode(), "can't insert after an empty bounds")
       );
 
       this.sync(iterator);

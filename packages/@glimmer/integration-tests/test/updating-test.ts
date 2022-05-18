@@ -12,7 +12,7 @@ import {
 } from '..';
 import { SimpleElement, SimpleNode } from '@simple-dom/interface';
 import { assert } from './support';
-import { expect } from '@glimmer/util';
+import { existing } from '@glimmer/util';
 import { createTag, consumeTag, dirtyTag } from '@glimmer/validator';
 
 function makeSafeString(value: string): SafeString {
@@ -1477,7 +1477,7 @@ class UpdatingTest extends RenderTest {
   }
 
   assertInvariants(msg?: string) {
-    let result = expect(this.renderResult, 'must render before asserting invariants');
+    let result = existing(this.renderResult, 'must render before asserting invariants');
 
     assert.strictEqual(
       result.firstNode(),

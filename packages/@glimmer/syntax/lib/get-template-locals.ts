@@ -1,5 +1,5 @@
 import { isKeyword } from './keywords';
-import { Source } from './source/source';
+import { SourceTemplate } from './source/source';
 import traverse from './traversal/traverse';
 import * as ASTv1 from './v1/api';
 
@@ -97,7 +97,8 @@ export function getTemplateLocals(
     includeKeywords: false,
   }
 ): string[] {
-  const ast = Source.from(html).preprocess();
+  // this API doesn't expose any AST nodes, so the name of the module doesn't matter
+  const ast = SourceTemplate.from(html, 'getTemplateLocals').preprocess();
   const tokensSet = new Set<string>();
   const scopedTokens: string[] = [];
 

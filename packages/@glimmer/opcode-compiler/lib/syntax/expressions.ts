@@ -81,7 +81,7 @@ EXPRESSIONS.add(SexpOpcodes.GetFreeAsDeprecatedHelperHeadOrThisFallback, (op, ex
 
   op(HighLevelResolutionOpcode.ResolveLocal, expr[1], (_name: string) => {
     op(HighLevelResolutionOpcode.ResolveOptionalHelper, expr, {
-      ifHelper: (handle: number, name: string, moduleName: string) => {
+      ifHelper: (handle: number, name: string, moduleName: string | null) => {
         assert(expr[2] && expr[2].length === 1, '[BUG] Missing argument name');
 
         let arg = expr[2][0];

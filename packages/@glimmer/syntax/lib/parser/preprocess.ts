@@ -1,6 +1,6 @@
 import { Option } from '@glimmer/interfaces';
 
-import { Source } from '../source/source';
+import { SourceTemplate } from '../source/source';
 import * as ASTv1 from '../v1/api';
 import * as HBS from '../v1/handlebars-ast';
 import { ASTPluginBuilder } from './plugins';
@@ -19,6 +19,23 @@ export interface TemplateIdFn {
 export interface PrecompileOptions extends PreprocessOptions {
   id?: TemplateIdFn;
   customizeComponentName?(input: string): string;
+}
+
+export function optionsWithDefaultModule<P extends PreprocessOptions>(
+  options: P,
+  module: string
+): P & { meta: { moduleName: string } } {
+  if (options?.meta?.moduleName) {
+    return options as P & { meta: { moduleName: string } };
+  } else {
+    return {
+      ...options,
+      meta: {
+        ...options?.meta,
+        moduleName: module,
+      },
+    };
+  }
 }
 
 export interface PreprocessOptions {
@@ -43,8 +60,11 @@ export interface PreprocessOptions {
   mode?: 'codemod' | 'precompile';
 }
 
-export function normalize(options?: PreprocessOptions): NormalizedPreprocessOptions {
-  return NormalizedPreprocessOptions.from(options);
+export function normalize(
+  module: string,
+  options?: PreprocessOptions
+): NormalizedPreprocessOptions {
+  return NormalizedPreprocessOptions.from(options, module);
 }
 
 function normalizeLocals(locals: EmbedderLocals | string[] | undefined): (name: string) => boolean {
@@ -57,8 +77,13 @@ function normalizeLocals(locals: EmbedderLocals | string[] | undefined): (name: 
   }
 }
 
-interface NormalizedPreprocessFields {
-  readonly module: string;
+export interface ModuleName {
+  name: string;
+  synthesized: boolean;
+}
+
+export interface NormalizedPreprocessFields {
+  readonly module: ModuleName;
   readonly meta: object;
   readonly mode: {
     readonly strictness: 'strict' | 'loose';
@@ -76,11 +101,44 @@ interface NormalizedPreprocessFields {
   readonly handlebars: HandlebarsParseOptions;
 }
 
+function defaultOptions(module: ModuleName): NormalizedPreprocessFields {
+  return {
+    module,
+    meta: {},
+    mode: {
+      strictness: 'loose',
+      purpose: 'precompile',
+    },
+    embedder: {
+      hasBinding: () => false,
+    },
+    plugins: {
+      ast: [],
+    },
+    customize: {
+      componentName: (input: string) => input,
+    },
+    handlebars: {},
+  };
+}
+
 export class NormalizedPreprocessOptions implements NormalizedPreprocessFields {
-  static from(options: PreprocessOptions | undefined): NormalizedPreprocessOptions {
+  static from(options: PreprocessOptions | undefined, module: string): NormalizedPreprocessOptions {
+    return NormalizedPreprocessOptions.create(
+      options,
+      options?.meta?.moduleName
+        ? ({ name: options?.meta?.moduleName as string, synthesized: false } as ModuleName)
+        : ({ name: module, synthesized: true } as ModuleName)
+    );
+  }
+
+  static create(
+    options: PreprocessOptions | undefined,
+    module: ModuleName
+  ): NormalizedPreprocessOptions {
     return new NormalizedPreprocessOptions({
       meta: options?.meta ?? {},
-      module: options?.meta?.moduleName ?? 'an unknown module',
+      module,
       mode: {
         strictness: options?.strictMode ? 'strict' : 'loose',
         purpose: options?.mode ?? 'precompile',
@@ -101,15 +159,21 @@ export class NormalizedPreprocessOptions implements NormalizedPreprocessFields {
     });
   }
 
-  static default(): NormalizedPreprocessOptions {
-    return NormalizedPreprocessOptions.from(undefined);
+  static fromFields(
+    fields: Partial<NormalizedPreprocessFields>,
+    module: ModuleName
+  ): NormalizedPreprocessOptions {
+    return new NormalizedPreprocessOptions({
+      ...defaultOptions(module),
+      ...fields,
+    });
   }
 
-  static forModuleName(module: string): NormalizedPreprocessOptions {
-    return new NormalizedPreprocessOptions({ ...DEFAULT_PREPROCESS_OPTIONS, module });
+  static default(module: ModuleName): NormalizedPreprocessOptions {
+    return NormalizedPreprocessOptions.create(undefined, module);
   }
 
-  readonly module: string;
+  readonly module: ModuleName;
   /** The metadata supplied by the user. */
   readonly meta: object;
   readonly mode: {
@@ -136,12 +200,48 @@ export class NormalizedPreprocessOptions implements NormalizedPreprocessFields {
     this.customize = fields.customize;
     this.handlebars = fields.handlebars;
   }
+
+  withModule(name: string): NormalizedPreprocessOptions {
+    return new NormalizedPreprocessOptions({
+      ...this,
+      module: name,
+      meta: { ...this.meta, moduleName: name },
+    });
+  }
 }
 
-export const DEFAULT_PREPROCESS_OPTIONS = NormalizedPreprocessOptions.default();
+export type PreprocessInput = string | SourceTemplate | HBS.Program;
 
-export type PreprocessInput = string | Source | HBS.Program;
+type PreprocessFunction = (input: PreprocessInput, options?: PreprocessOptions) => ASTv1.Template;
+type NormalizedPreprocessFunction = (
+  input: PreprocessInput,
+  options: NormalizedPreprocessOptions
+) => ASTv1.Template;
 
-export function preprocess(input: PreprocessInput, options?: PreprocessOptions): ASTv1.Template {
-  return Source.from(input, options).preprocess();
+export interface Preprocess extends PreprocessFunction {
+  normalized: NormalizedPreprocessFunction;
 }
+
+export function Preprocess({
+  preprocess,
+  normalized,
+}: {
+  preprocess: PreprocessFunction & Partial<Preprocess>;
+  normalized: NormalizedPreprocessFunction;
+}): Preprocess {
+  preprocess.normalized = normalized;
+  return preprocess as Preprocess;
+}
+
+export const preprocess = Preprocess({
+  preprocess: (input: PreprocessInput, options?: PreprocessOptions) => {
+    return SourceTemplate.from(
+      input,
+      options?.meta?.moduleName ?? `an ?unknown? module`,
+      options
+    ).preprocess();
+  },
+  normalized: (input: PreprocessInput, options: NormalizedPreprocessOptions) => {
+    return SourceTemplate.fromNormalized(input, options).preprocess();
+  },
+});

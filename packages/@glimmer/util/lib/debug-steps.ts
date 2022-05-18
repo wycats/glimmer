@@ -1,6 +1,6 @@
 import { LOCAL_DEBUG } from '@glimmer/local-debug-flags';
 import assert from './assert';
-import { expect } from './platform-utils';
+import { existing } from './platform-utils';
 
 export let beginTestSteps: (() => void) | undefined;
 export let endTestSteps: (() => void) | undefined;
@@ -37,7 +37,10 @@ if (LOCAL_DEBUG) {
     expectedSteps: unknown[] | ((steps: unknown[]) => void),
     message?: string
   ) => {
-    let loggedSteps = expect(LOGGED_STEPS, 'attempetd to verify steps, but steps were not started');
+    let loggedSteps = existing(
+      LOGGED_STEPS,
+      'attempetd to verify steps, but steps were not started'
+    );
 
     let steps = loggedSteps[type] || [];
 

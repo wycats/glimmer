@@ -1,6 +1,8 @@
-import { builders as b } from '..';
+import { Buildersv1 } from '..';
 import { element } from './parser-node-test';
 import { astEqual } from './support';
+
+const b = Buildersv1.forModule('', 'test-module');
 
 QUnit.module('[glimmer-syntax] AST Builders');
 

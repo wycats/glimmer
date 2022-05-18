@@ -1,5 +1,5 @@
 import { LOCAL_SHOULD_LOG } from '@glimmer/local-debug-flags';
-import { ASTv2, Source } from '@glimmer/syntax';
+import { ASTv2, SourceTemplate } from '@glimmer/syntax';
 import { LOCAL_LOGGER } from '@glimmer/util';
 
 import { Result } from '../../shared/result';
@@ -46,7 +46,7 @@ import { VISIT_STMTS } from './visitors/statements';
  * ```
  */
 export default function normalize(
-  source: Source,
+  source: SourceTemplate,
   root: ASTv2.Template,
   isStrict: boolean
 ): Result<mir.Template> {

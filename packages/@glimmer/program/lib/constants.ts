@@ -11,7 +11,7 @@ import {
   HelperDefinitionState,
   Template,
 } from '@glimmer/interfaces';
-import { assert, constants, expect, unwrapTemplate } from '@glimmer/util';
+import { assert, constants, existing, unwrapTemplate } from '@glimmer/util';
 import {
   capabilityFlagsFrom,
   getComponentTemplate,
@@ -92,7 +92,8 @@ export class RuntimeConstantsImpl implements RuntimeConstants {
 
 export class ConstantsImpl
   extends CompileTimeConstantImpl
-  implements RuntimeConstants, ResolutionTimeConstants {
+  implements RuntimeConstants, ResolutionTimeConstants
+{
   protected reifiedArrs: { [key: number]: unknown[] } = {
     [WELL_KNOWN_EMPTY_ARRAY_POSITION]: WELL_KNOWN_EMPTY_ARRAY as unknown[],
   };
@@ -298,7 +299,7 @@ export class ConstantsImpl
       this.componentDefinitionCount++;
     }
 
-    return expect(definition, 'BUG: resolved component definitions cannot be null');
+    return existing(definition, 'BUG: resolved component definitions cannot be null');
   }
 
   getValue<T>(index: number) {

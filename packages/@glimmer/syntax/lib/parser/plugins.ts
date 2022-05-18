@@ -1,17 +1,11 @@
 import { EntityParser } from 'simple-html-tokenizer';
 
-import { Source } from '../source/source';
+import { SourceTemplate } from '../source/source';
 import traverse from '../traversal/traverse';
 import { NodeVisitor } from '../traversal/visitor';
 import Walker from '../traversal/walker';
-import * as ASTv1 from '../v1/api';
 import { PublicBuilders } from '../v1/public-builders';
-import {
-  NormalizedPreprocessOptions,
-  preprocess,
-  PreprocessInput,
-  PreprocessOptions,
-} from './preprocess';
+import { NormalizedPreprocessOptions, Preprocess } from './preprocess';
 
 /**
   ASTPlugins can make changes to the Glimmer template AST before
@@ -40,20 +34,36 @@ export interface ASTPluginEnvironment {
 // }
 
 export class Syntax {
-  constructor(private options: NormalizedPreprocessOptions) {}
+  static create(template: SourceTemplate): Syntax {
+    return new Syntax(template);
+  }
 
-  readonly parse: typeof preprocess = (
-    input: PreprocessInput,
-    options?: PreprocessOptions
-  ): ASTv1.Template => {
-    const source = options
-      ? Source.from(input, options)
-      : Source.fromNormalized(input, this.options);
+  #template: SourceTemplate;
 
-    return source.preprocess();
-  };
+  constructor(template: SourceTemplate) {
+    this.#template = template;
+    this.builders = PublicBuilders.top(template);
+  }
 
-  readonly builders = PublicBuilders.top(this.options);
+  readonly parse = Preprocess({
+    preprocess: (input, options) => {
+      if (options) {
+        const source = this.#template.sub(
+          input,
+          NormalizedPreprocessOptions.from(options, this.#template.module)
+        );
+        return source.preprocess();
+      } else {
+        return this.#template.sub(input).preprocess();
+      }
+    },
+
+    normalized: (input, options) => {
+      return this.#template.sub(input, options).preprocess();
+    },
+  });
+
+  readonly builders: PublicBuilders;
   readonly print = print;
   readonly traverse = traverse;
   readonly Walker = Walker;

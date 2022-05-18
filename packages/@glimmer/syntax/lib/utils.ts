@@ -1,5 +1,5 @@
 import { Maybe, Option } from '@glimmer/interfaces';
-import { expect } from '@glimmer/util';
+import { existing } from '@glimmer/util';
 
 import { SourceSpan } from './source/span';
 import { GlimmerSyntaxError } from './syntax-error';
@@ -13,7 +13,8 @@ let ID_INVERSE_PATTERN = /[!"#%-,\.\/;->@\[-\^`\{-~]/;
 
 export function getBlockParams(
   attributes: ASTv1.AttrNode[],
-  loc: SourceSpan
+  // FIXME
+  _loc: SourceSpan
 ): { attrs: ASTv1.AttrNode[]; blockParams: string[] } {
   const parsed = ParsedBlockParams.parse(preparseAttrs(attributes));
 
@@ -93,14 +94,14 @@ class ParsedBlockParams {
 
         if (foundLastPipe === null) {
           return new ParsedBlockParams(
-            new ExtraAttributes(expect(NodeGroupWithHead.from(afterSecondPipe), 'FIXME'))
+            new ExtraAttributes(existing(NodeGroupWithHead.from(afterSecondPipe), 'FIXME'))
           );
         } else {
           const { before: extraPipes, node } = foundLastPipe;
           extraPipes.push(node);
           return new ParsedBlockParams(
             new TooManyPipes(
-              expect(NodeGroupWithHead.from(extraPipes), 'FIXME'),
+              existing(NodeGroupWithHead.from(extraPipes), 'FIXME'),
               NodeGroupWithTail.from(afterLastPipe)
             )
           );
@@ -357,7 +358,7 @@ function preparseAttr(attr: ASTv1.AttrNode): ASTv1.AttrNode[] {
   }
 
   const { name } = attr;
-  const match = expect(name.match(/^(\|?)(.*?)(\|?)$/), 'the regex matches any input string');
+  const match = existing(name.match(/^(\|?)(.*?)(\|?)$/), 'the regex matches any input string');
 
   const openPipe = match[1];
   const body = match[2];
@@ -382,17 +383,15 @@ function preparseAttr(attr: ASTv1.AttrNode): ASTv1.AttrNode[] {
   return attrs;
 }
 
-const EMPTY_VALUE: ASTv1.TextNode = {
-  type: 'TextNode',
-  chars: '',
-  loc: SourceSpan.NON_EXISTENT,
-};
-
 function bareAttr(name: string, loc: SourceSpan): ASTv1.AttrNode {
   return {
     type: 'AttrNode',
     name,
-    value: EMPTY_VALUE,
+    value: {
+      type: 'TextNode',
+      chars: '',
+      loc: SourceSpan.NON_EXISTENT(loc.getTemplate()),
+    },
     loc,
   };
 }

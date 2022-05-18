@@ -15,7 +15,7 @@ import {
   InternalModifierManager,
   ModifierInstanceState,
 } from '@glimmer/interfaces';
-import { assert, expect, symbol } from '@glimmer/util';
+import { assert, existing, symbol } from '@glimmer/util';
 import { track, updateTag } from '@glimmer/validator';
 import { DOMChangesImpl, DOMTreeConstruction } from './dom/helper';
 import { RuntimeProgramImpl } from '@glimmer/program';
@@ -138,7 +138,7 @@ export class EnvironmentImpl implements Environment {
   }
 
   getDOM(): GlimmerTreeChanges {
-    return expect(
+    return existing(
       this.updateOperations,
       'Attempted to get DOM updateOperations, but they were not provided by the environment. You may be attempting to rerender in an environment which does not support rerendering, such as SSR.'
     );
@@ -156,7 +156,7 @@ export class EnvironmentImpl implements Environment {
   }
 
   private get transaction(): TransactionImpl {
-    return expect(this[TRANSACTION]!, 'must be in a transaction');
+    return existing(this[TRANSACTION]!, 'must be in a transaction');
   }
 
   didCreate(component: ComponentInstanceWithCreate) {

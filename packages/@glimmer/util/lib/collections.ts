@@ -30,6 +30,19 @@ export class StackImpl<T> implements Stack<T> {
     return this.stack.length;
   }
 
+  has(search: (value: T) => boolean): boolean {
+    return !!this.stack.find(search);
+  }
+
+  nearest(search: (value: T) => boolean): Option<T> {
+    for (let i = this.stack.length - 1; i >= 0; i--) {
+      let value = this.stack[i];
+      if (search(value)) return value;
+    }
+
+    return null;
+  }
+
   push(item: T) {
     this.current = item;
     this.stack.push(item);

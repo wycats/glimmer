@@ -1,7 +1,7 @@
 /* eslint-disable qunit/no-global-module-test */
 import { Dict } from '@glimmer/interfaces';
-import { Source } from '@glimmer/syntax';
-import { unwrap } from '@glimmer/util';
+import { SourceTemplate } from '@glimmer/syntax';
+import { unwrapped } from '@glimmer/util';
 
 // eslint-disable-next-line @typescript-eslint/unbound-method
 const test = QUnit.test;
@@ -57,7 +57,7 @@ const cases: Dict<[string, number | null][]> = {
 QUnit.module('locations - position');
 
 Object.keys(cases).forEach((string) => {
-  let source = new Source(string);
+  let source = SourceTemplate.from(string, 'test-module');
 
   for (let [span, offset] of cases[string]) {
     let [line, column] = span.split(':').map((i) => parseInt(i, 10));
@@ -65,7 +65,7 @@ Object.keys(cases).forEach((string) => {
     if (offset === null) continue;
 
     test(`${string} @ ${offset} -> ${line}:${column}`, (assert) => {
-      assert.deepEqual(source.hbsPosFor(unwrap(offset)), { line, column });
+      assert.deepEqual(source.hbsPosFor(unwrapped(offset)), { line, column });
     });
   }
 });
@@ -73,7 +73,7 @@ Object.keys(cases).forEach((string) => {
 QUnit.module('locations - location');
 
 Object.keys(cases).forEach((string) => {
-  let source = new Source(string);
+  let source = SourceTemplate.from(string, 'test-module');
 
   for (let [span, offset] of cases[string]) {
     let [line, column] = span.split(':').map((i) => parseInt(i, 10));

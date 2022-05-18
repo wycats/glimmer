@@ -1,5 +1,5 @@
 import { Option } from '@glimmer/interfaces';
-import { assert, assign, expect, Stack } from '@glimmer/util';
+import { assert, assign, existing, Stack } from '@glimmer/util';
 import {
   EntityParser,
   EventedTokenizer,
@@ -8,7 +8,7 @@ import {
 
 import { Scope } from './parser/scope';
 import { SourcePosition } from './source/location';
-import { Source } from './source/source';
+import { SourceTemplate } from './source/source';
 import { SourceOffset, SourceSpan } from './source/span';
 import * as ASTv1 from './v1/api';
 import * as HBS from './v1/handlebars-ast';
@@ -37,13 +37,13 @@ export interface Attribute {
   isQuoted: boolean;
   isDynamic: boolean;
   start: SourceOffset;
-  valueSpan: SourceSpan;
+  valueSpan: SourceSpan | null;
 }
 
 export abstract class Parser {
   protected elementStack: Element[] = [];
   private lines: string[];
-  readonly source: Source;
+  readonly source: SourceTemplate;
   public currentAttribute: Option<Attribute> = null;
   public currentNode: Option<
     Readonly<
@@ -56,7 +56,7 @@ export abstract class Parser {
   public tokenizer: EventedTokenizer;
   #builderStack: Stack<Phase1Builder>;
 
-  constructor(source: Source, entityParser = new EntityParser(namedCharRefs)) {
+  constructor(source: SourceTemplate, entityParser = new EntityParser(namedCharRefs)) {
     this.source = source;
     this.lines = (source.source ?? '').split(/(?:\r\n?|\n)/g);
     this.tokenizer = new EventedTokenizer(this, entityParser, source.purpose);
@@ -77,6 +77,7 @@ export abstract class Parser {
   }
 
   get builder(): Phase1Builder {
+    // @ts-expect-error FIXME
     return this.#builderStack.current;
   }
 
@@ -136,8 +137,16 @@ export abstract class Parser {
   abstract finishComment(): void;
   abstract reportSyntaxError(error: string): void;
 
+  get inAttrName(): boolean {
+    return this.currentAttribute !== null && this.currentAttrValueSpan === null;
+  }
+
   get currentAttr(): Attribute {
-    return expect(this.currentAttribute, 'expected attribute');
+    return existing(this.currentAttribute, 'expected attribute');
+  }
+
+  get currentAttrValueSpan(): SourceSpan {
+    return existing(this.currentAttr.valueSpan, { variable: 'this.currentAttr.valueSpan' });
   }
 
   get currentTag(): ParserNodeBuilder<Tag<'StartTag' | 'EndTag'>> {

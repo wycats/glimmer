@@ -14,7 +14,7 @@ import {
   SexpOpcodes,
   ResolutionTimeConstants,
 } from '@glimmer/interfaces';
-import { assert, debugToString, expect } from '@glimmer/util';
+import { assert, debugToString, existing } from '@glimmer/util';
 
 function isGetLikeTuple(opcode: Expressions.Expression): opcode is Expressions.TupleExpression {
   return Array.isArray(opcode) && opcode.length === 2;
@@ -110,14 +110,15 @@ export function resolveComponent(
 
   if (type === SexpOpcodes.GetEmbedderSymbol) {
     let { scopeValues, owner } = meta;
-    let definition = expect(scopeValues, 'BUG: scopeValues must exist if template symbol is used')[
-      expr[1]
-    ];
+    let definition = existing(
+      scopeValues,
+      'BUG: scopeValues must exist if template symbol is used'
+    )[expr[1]];
 
     then(
       constants.component(
         definition as object,
-        expect(owner, 'BUG: expected owner when resolving component definition')
+        existing(owner, 'BUG: expected owner when resolving component definition')
       )
     );
   } else {
@@ -152,9 +153,10 @@ export function resolveHelper(
 
   if (type === SexpOpcodes.GetEmbedderSymbol) {
     let { scopeValues } = meta;
-    let definition = expect(scopeValues, 'BUG: scopeValues must exist if template symbol is used')[
-      expr[1]
-    ];
+    let definition = existing(
+      scopeValues,
+      'BUG: scopeValues must exist if template symbol is used'
+    )[expr[1]];
 
     then(constants.helper(definition as object));
   } else if (type === SexpOpcodes.GetStrictFree) {
@@ -194,9 +196,10 @@ export function resolveModifier(
 
   if (type === SexpOpcodes.GetEmbedderSymbol) {
     let { scopeValues } = meta;
-    let definition = expect(scopeValues, 'BUG: scopeValues must exist if template symbol is used')[
-      expr[1]
-    ];
+    let definition = existing(
+      scopeValues,
+      'BUG: scopeValues must exist if template symbol is used'
+    )[expr[1]];
 
     then(constants.modifier(definition as object));
   } else if (type === SexpOpcodes.GetStrictFree) {
@@ -244,13 +247,14 @@ export function resolveComponentOrHelper(
 
   if (type === SexpOpcodes.GetEmbedderSymbol) {
     let { scopeValues, owner } = meta;
-    let definition = expect(scopeValues, 'BUG: scopeValues must exist if template symbol is used')[
-      expr[1]
-    ];
+    let definition = existing(
+      scopeValues,
+      'BUG: scopeValues must exist if template symbol is used'
+    )[expr[1]];
 
     let component = constants.component(
       definition as object,
-      expect(owner, 'BUG: expected owner when resolving component definition'),
+      existing(owner, 'BUG: expected owner when resolving component definition'),
       true
     );
 
@@ -269,7 +273,7 @@ export function resolveComponentOrHelper(
       );
     }
 
-    ifHelper(expect(helper, 'BUG: helper must exist'));
+    ifHelper(existing(helper, 'BUG: helper must exist'));
   } else if (type === SexpOpcodes.GetStrictFree) {
     ifHelper(
       lookupBuiltInHelper(
@@ -343,9 +347,10 @@ export function resolveOptionalComponentOrHelper(
 
   if (type === SexpOpcodes.GetEmbedderSymbol) {
     let { scopeValues, owner } = meta;
-    let definition = expect(scopeValues, 'BUG: scopeValues must exist if template symbol is used')[
-      expr[1]
-    ];
+    let definition = existing(
+      scopeValues,
+      'BUG: scopeValues must exist if template symbol is used'
+    )[expr[1]];
 
     if (
       typeof definition !== 'function' &&
@@ -358,7 +363,7 @@ export function resolveOptionalComponentOrHelper(
 
     let component = constants.component(
       definition,
-      expect(owner, 'BUG: expected owner when resolving component definition'),
+      existing(owner, 'BUG: expected owner when resolving component definition'),
       true
     );
 

@@ -1,6 +1,6 @@
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { SourcePosition, UNKNOWN_POSITION } from '../location';
-import { Source } from '../source';
+import { SourceTemplate } from '../source';
 import { match, MatchAny } from './match';
 import { SourceSpan, span } from './span';
 
@@ -72,8 +72,8 @@ export class SourceOffset {
    * into a character offset on demand, which avoids unnecessarily computing the offset of every
    * `SourceLocation`, but also means that broken `SourcePosition`s are not always detected.
    */
-  static forHbsPos(source: Source, pos: SourcePosition): SourceOffset {
-    return new HbsPosition(source, pos, null).wrap();
+  static forHbsPos(template: SourceTemplate, pos: SourcePosition): SourceOffset {
+    return new HbsPosition(template, pos, null).wrap();
   }
 
   /**
@@ -81,8 +81,8 @@ export class SourceOffset {
    * calling code determined (or knows) that the `SourceLocation` doesn't correspond correctly to
    * any part of the source.
    */
-  static broken(pos: SourcePosition = UNKNOWN_POSITION): SourceOffset {
-    return new InvisiblePosition(OffsetKind.Broken, pos).wrap();
+  static broken(template: SourceTemplate, pos: SourcePosition = UNKNOWN_POSITION): SourceOffset {
+    return new InvisiblePosition(OffsetKind.Broken, pos, template).wrap();
   }
 
   constructor(readonly data: PositionData & AnyPosition) {}
@@ -129,14 +129,14 @@ export class SourceOffset {
     let charPos = this.data.toCharPos();
 
     if (charPos === null) {
-      return SourceOffset.broken();
+      return SourceOffset.broken(this.data.template);
     } else {
       let result = charPos.offset + by;
 
-      if (charPos.source.check(result)) {
-        return new CharPosition(charPos.source, result).wrap();
+      if (charPos.template.check(result)) {
+        return new CharPosition(charPos.template, result).wrap();
       } else {
-        return SourceOffset.broken();
+        return SourceOffset.broken(this.data.template);
       }
     }
   }
@@ -164,7 +164,7 @@ export class CharPosition implements PositionData {
   /** Computed from char offset */
   _locPos: HbsPosition | BROKEN | null = null;
 
-  constructor(readonly source: Source, readonly charPos: number) {}
+  constructor(readonly template: SourceTemplate, readonly charPos: number) {}
 
   /**
    * This is already a `CharPosition`.
@@ -209,12 +209,12 @@ export class CharPosition implements PositionData {
     let locPos = this._locPos;
 
     if (locPos === null) {
-      let hbsPos = this.source.hbsPosFor(this.charPos);
+      let hbsPos = this.template.hbsPosFor(this.charPos);
 
       if (hbsPos === null) {
         this._locPos = locPos = BROKEN;
       } else {
-        this._locPos = locPos = new HbsPosition(this.source, hbsPos, this.charPos);
+        this._locPos = locPos = new HbsPosition(this.template, hbsPos, this.charPos);
       }
     }
 
@@ -228,11 +228,11 @@ export class HbsPosition implements PositionData {
   _charPos: CharPosition | BROKEN | null;
 
   constructor(
-    readonly source: Source,
+    readonly template: SourceTemplate,
     readonly hbsPos: SourcePosition,
     charPos: number | null = null
   ) {
-    this._charPos = charPos === null ? null : new CharPosition(source, charPos);
+    this._charPos = charPos === null ? null : new CharPosition(template, charPos);
   }
 
   /**
@@ -247,12 +247,12 @@ export class HbsPosition implements PositionData {
     let charPos = this._charPos;
 
     if (charPos === null) {
-      let charPosNumber = this.source.charPosFor(this.hbsPos);
+      let charPosNumber = this.template.charPosFor(this.hbsPos);
 
       if (charPosNumber === null) {
         this._charPos = charPos = BROKEN;
       } else {
-        this._charPos = charPos = new CharPosition(this.source, charPosNumber);
+        this._charPos = charPos = new CharPosition(this.template, charPosNumber);
       }
     }
 
@@ -287,7 +287,8 @@ export class InvisiblePosition implements PositionData {
   constructor(
     readonly kind: OffsetKind.Broken | OffsetKind.InternalsSynthetic | OffsetKind.NonExistent,
     // whatever was provided, possibly broken
-    readonly pos: SourcePosition
+    readonly pos: SourcePosition,
+    readonly template: SourceTemplate
   ) {}
 
   /**

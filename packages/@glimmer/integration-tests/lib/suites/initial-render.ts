@@ -1,7 +1,7 @@
 import { Namespace, SimpleElement } from '@simple-dom/interface';
 import { RenderTest } from '../render-test';
 import { test } from '../test-decorator';
-import { castToBrowser, checkNode, strip, unwrap } from '@glimmer/util';
+import { castToBrowser, checkNode, strip, unwrapped } from '@glimmer/util';
 import { firstElementChild, getElementsByTagName } from '../dom/simple-utils';
 import { assertNodeTagName } from '../dom/assertions';
 
@@ -698,7 +698,7 @@ export class InitialRenderSuite extends RenderTest {
     this.assertHTML('<svg></svg><svg></svg><div></div>');
 
     this.assert.equal(
-      castToBrowser(unwrap(this.element.childNodes[0]), 'SVG').namespaceURI,
+      castToBrowser(unwrapped(this.element.childNodes[0]), 'SVG').namespaceURI,
       Namespace.SVG,
       'creates the first svg element with a namespace'
     );

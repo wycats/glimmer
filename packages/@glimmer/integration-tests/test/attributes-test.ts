@@ -1,7 +1,7 @@
 import { normalizeProperty } from '@glimmer/runtime';
 import { assertElement, hasAttribute, jitSuite, RenderTest, test, tracked } from '..';
 import { Namespace, SimpleElement } from '@simple-dom/interface';
-import { castToBrowser, expect } from '@glimmer/util';
+import { castToBrowser, existing } from '@glimmer/util';
 
 export class AttributesTests extends RenderTest {
   static suiteName = 'Attributes';
@@ -253,7 +253,7 @@ export class AttributesTests extends RenderTest {
     this.assertStableRerender();
 
     let inputElement = castToBrowser(
-      expect(this.element.firstChild, 'expected input to exist'),
+      existing(this.element.firstChild, 'expected input to exist'),
       'input'
     );
 

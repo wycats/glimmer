@@ -19,6 +19,17 @@ export const SYNTAX_ERRORS = {
   'elements.unbalanced-tags': ({ open, close }: { open: string; close: string }) =>
     `Closing tag </${close}> did not match last open tag <${open}>`,
   'attrs.invalid-char': (char: string) => `${char} is not a valid character within attribute names`,
+
+  'modifier.missing-binding': ({ path, variable }: { path: string; variable: string }) =>
+    `You attempted to invoke a path (${path}) as a modifier, but ${variable} was not in scope. Try adding \`this\` to the beginning of the path`,
+
+  'component.missing-binding': (name: string) =>
+    `Attempted to invoke a component that was not in scope in a strict mode template, \`<${name}>\`. If you wanted to create an element with that name, convert it to lowercase - \`<${name.toLowerCase()}>\``,
+
+  'hbs.syntax.invalid-dotdot': `Changing context using "../" is not supported in Glimmer`,
+  'hbs.syntax.invalid-slash': `Mixing '.' and '/' in paths is not supported in Glimmer; use only '.' to separate property paths`,
+  'hbs.syntax.invalid-dot': `'.' is not a supported path in Glimmer; check for a path with a trailing '.'`,
+  'hbs.syntax.invalid-dotslash': 'Using "./" is not supported in Glimmer and unnecessary',
 } as const;
 export type SYNTAX_ERRORS = typeof SYNTAX_ERRORS;
 

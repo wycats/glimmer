@@ -1,14 +1,12 @@
 import {
+  defineComponent,
+  defineSimpleHelper,
+  defineSimpleModifier,
+  GlimmerishComponent,
+  jitSuite,
   RenderTest,
   test,
-  jitSuite,
-  defineSimpleModifier,
-  syntaxErrorFor,
-  GlimmerishComponent,
-  defineSimpleHelper,
-  defineComponent,
 } from '../..';
-import { GlimmerSyntaxError } from '../../../syntax/index';
 
 class DynamicModifiersResolutionModeTest extends RenderTest {
   static suiteName = 'dynamic modifiers in resolution mode';
@@ -129,10 +127,11 @@ class DynamicModifiersResolutionModeTest extends RenderTest {
   }
 
   @test
-  'Cannot invoke a modifier definition based on this fallback lookup in resolution mode'() {
-    this.assert.throws(() => {
-      this.registerComponent('TemplateOnly', 'Bar', '<div {{x.foo}}></div>');
-    }, syntaxErrorFor('You attempted to invoke a path (`{{#x.foo}}`) as a modifier, but x was not in scope. Try adding `this` to the beginning of the path', '{{x.foo}}', 'an unknown module', 1, 5));
+  'Cannot invoke a modifier definition based on `this fallback lookup` in loose resolution mode'() {
+    this.componentSyntaxError(`<div ~#{{x.foo}}#~></div>`, {
+      error: ['modifier.missing-binding', { path: 'x.foo', variable: 'x' }],
+      mode: 'both',
+    });
   }
 
   @test

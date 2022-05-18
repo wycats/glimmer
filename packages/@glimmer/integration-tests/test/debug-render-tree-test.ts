@@ -6,7 +6,7 @@ import {
   InternalComponentManager,
   Owner,
 } from '@glimmer/interfaces';
-import { expect, assign } from '@glimmer/util';
+import { existing, assign } from '@glimmer/util';
 import { SimpleElement, SimpleNode } from '@simple-dom/interface';
 import {
   test,
@@ -90,7 +90,7 @@ class DebugRenderTreeTest extends RenderTest {
         name: 'HelloWorld',
         args: { positional: [], named: { arg: 'first' } },
         instance: null,
-        template: '(unknown template module)',
+        template: 'HelloWorld',
         bounds: this.nodeBounds(this.delegate.getInitialElement().firstChild),
         children: [],
       },
@@ -104,7 +104,7 @@ class DebugRenderTreeTest extends RenderTest {
         name: 'HelloWorld',
         args: { positional: [], named: { arg: 'first' } },
         instance: null,
-        template: '(unknown template module)',
+        template: 'HelloWorld',
         bounds: this.nodeBounds(this.delegate.getInitialElement().firstChild),
         children: [],
       },
@@ -113,7 +113,7 @@ class DebugRenderTreeTest extends RenderTest {
         name: 'HelloWorld',
         args: { positional: [], named: { arg: 'second' } },
         instance: null,
-        template: '(unknown template module)',
+        template: 'HelloWorld',
         bounds: this.nodeBounds(this.delegate.getInitialElement().lastChild),
         children: [],
       },
@@ -127,7 +127,7 @@ class DebugRenderTreeTest extends RenderTest {
         name: 'HelloWorld',
         args: { positional: [], named: { arg: 'first' } },
         instance: null,
-        template: '(unknown template module)',
+        template: 'HelloWorld',
         bounds: this.nodeBounds(this.delegate.getInitialElement().firstChild),
         children: [],
       },
@@ -150,7 +150,7 @@ class DebugRenderTreeTest extends RenderTest {
         name: 'HelloWorld',
         args: { positional: [], named: { arg: 'first' } },
         instance: (instance: EmberishCurlyComponent) => (instance as any).arg === 'first',
-        template: '(unknown template module)',
+        template: 'HelloWorld',
         bounds: this.nodeBounds(this.delegate.getInitialElement().firstChild),
         children: [],
       },
@@ -164,7 +164,7 @@ class DebugRenderTreeTest extends RenderTest {
         name: 'HelloWorld',
         args: { positional: [], named: { arg: 'first' } },
         instance: (instance: EmberishCurlyComponent) => (instance as any).arg === 'first',
-        template: '(unknown template module)',
+        template: 'HelloWorld',
         bounds: this.nodeBounds(this.element.firstChild),
         children: [],
       },
@@ -173,7 +173,7 @@ class DebugRenderTreeTest extends RenderTest {
         name: 'HelloWorld',
         args: { positional: [], named: { arg: 'second' } },
         instance: (instance: EmberishCurlyComponent) => (instance as any).arg === 'second',
-        template: '(unknown template module)',
+        template: 'HelloWorld',
         bounds: this.nodeBounds(this.element.lastChild),
         children: [],
       },
@@ -187,7 +187,7 @@ class DebugRenderTreeTest extends RenderTest {
         name: 'HelloWorld',
         args: { positional: [], named: { arg: 'first' } },
         instance: (instance: EmberishCurlyComponent) => (instance as any).arg === 'first',
-        template: '(unknown template module)',
+        template: 'HelloWorld',
         bounds: this.nodeBounds(this.element.firstChild),
         children: [],
       },
@@ -210,7 +210,7 @@ class DebugRenderTreeTest extends RenderTest {
         name: 'HelloWorld',
         args: { positional: [], named: { arg: 'first' } },
         instance: (instance: GlimmerishComponent) => instance.args.arg === 'first',
-        template: '(unknown template module)',
+        template: 'HelloWorld',
         bounds: this.nodeBounds(this.delegate.getInitialElement().firstChild),
         children: [],
       },
@@ -224,7 +224,7 @@ class DebugRenderTreeTest extends RenderTest {
         name: 'HelloWorld',
         args: { positional: [], named: { arg: 'first' } },
         instance: (instance: GlimmerishComponent) => instance.args.arg === 'first',
-        template: '(unknown template module)',
+        template: 'HelloWorld',
         bounds: this.nodeBounds(this.element.firstChild),
         children: [],
       },
@@ -233,7 +233,7 @@ class DebugRenderTreeTest extends RenderTest {
         name: 'HelloWorld',
         args: { positional: [], named: { arg: 'second' } },
         instance: (instance: GlimmerishComponent) => instance.args.arg === 'second',
-        template: '(unknown template module)',
+        template: 'HelloWorld',
         bounds: this.nodeBounds(this.element.lastChild),
         children: [],
       },
@@ -247,7 +247,7 @@ class DebugRenderTreeTest extends RenderTest {
         name: 'HelloWorld',
         args: { positional: [], named: { arg: 'first' } },
         instance: (instance: GlimmerishComponent) => instance.args.arg === 'first',
-        template: '(unknown template module)',
+        template: 'HelloWorld',
         bounds: this.nodeBounds(this.element.firstChild),
         children: [],
       },
@@ -307,7 +307,7 @@ class DebugRenderTreeTest extends RenderTest {
         name: 'HelloWorld2',
         args: { positional: [], named: { arg: 'first' } },
         instance: null,
-        template: '(unknown template module)',
+        template: 'HelloWorld2',
         bounds: this.nodeBounds(this.delegate.getInitialElement().firstChild),
         children: [],
       },
@@ -321,7 +321,7 @@ class DebugRenderTreeTest extends RenderTest {
         name: 'HelloWorld2',
         args: { positional: [], named: { arg: 'first' } },
         instance: null,
-        template: '(unknown template module)',
+        template: 'HelloWorld2',
         bounds: this.nodeBounds(this.element.firstChild),
         children: [],
       },
@@ -354,7 +354,7 @@ class DebugRenderTreeTest extends RenderTest {
         name: 'HelloWorld2',
         args: { positional: [], named: { arg: 'first' } },
         instance: null,
-        template: '(unknown template module)',
+        template: 'HelloWorld2',
         bounds: this.nodeBounds(this.element.firstChild),
         children: [],
       },
@@ -387,7 +387,7 @@ class DebugRenderTreeTest extends RenderTest {
         name: 'HelloWorld2',
         args: { positional: [], named: { arg: 'first' } },
         instance: null,
-        template: '(unknown template module)',
+        template: 'HelloWorld2',
         bounds: this.nodeBounds(this.delegate.getInitialElement().firstChild),
         children: [],
       },
@@ -401,7 +401,7 @@ class DebugRenderTreeTest extends RenderTest {
         name: 'HelloWorld2',
         args: { positional: [], named: { arg: 'first' } },
         instance: null,
-        template: '(unknown template module)',
+        template: 'HelloWorld2',
         bounds: this.nodeBounds(this.element.firstChild),
         children: [],
       },
@@ -415,7 +415,7 @@ class DebugRenderTreeTest extends RenderTest {
         name: 'HelloWorld2',
         args: { positional: [], named: { arg: 'first' } },
         instance: null,
-        template: '(unknown template module)',
+        template: 'HelloWorld2',
         bounds: this.nodeBounds(this.element.firstChild),
         children: [],
       },
@@ -443,23 +443,23 @@ class DebugRenderTreeTest extends RenderTest {
   }
 
   nodeBounds(_node: SimpleNode | null): CapturedBounds {
-    let node = expect(_node, 'BUG: Expected node');
+    let node = existing(_node, 'BUG: Expected node');
 
     return {
-      parentElement: ((expect(
+      parentElement: existing(
         node.parentNode,
         'BUG: detached node'
-      ) as unknown) as SimpleNode) as SimpleElement,
-      firstNode: (node as unknown) as SimpleNode,
-      lastNode: (node as unknown) as SimpleNode,
+      ) as unknown as SimpleNode as SimpleElement,
+      firstNode: node as unknown as SimpleNode,
+      lastNode: node as unknown as SimpleNode,
     };
   }
 
   elementBounds(element: Element): CapturedBounds {
     return {
-      parentElement: (element as unknown) as SimpleElement,
-      firstNode: (element.firstChild! as unknown) as SimpleNode,
-      lastNode: (element.lastChild! as unknown) as SimpleNode,
+      parentElement: element as unknown as SimpleElement,
+      firstNode: element.firstChild! as unknown as SimpleNode,
+      lastNode: element.lastChild! as unknown as SimpleNode,
     };
   }
 

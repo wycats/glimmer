@@ -1,5 +1,5 @@
 import { Bounds, ElementBuilder, Environment, Option, Maybe } from '@glimmer/interfaces';
-import { assert, castToBrowser, castToSimple, expect, Stack } from '@glimmer/util';
+import { assert, castToBrowser, castToSimple, existing, Stack } from '@glimmer/util';
 import {
   AttrNamespace,
   Namespace,
@@ -293,7 +293,7 @@ export class RehydrateBuilder extends NewElementBuilder implements ElementBuilde
   }
 
   protected remove(node: SimpleNode): Option<SimpleNode> {
-    let element = expect(node.parentNode, `cannot remove a detached node`) as SimpleElement;
+    let element = existing(node.parentNode, `cannot remove a detached node`) as SimpleElement;
     let next = node.nextSibling;
     element.removeChild(node);
     return next;
@@ -304,10 +304,10 @@ export class RehydrateBuilder extends NewElementBuilder implements ElementBuilde
 
     if (_candidate && isMarker(_candidate)) {
       let first = _candidate;
-      let last = expect(first.nextSibling, `BUG: serialization markers must be paired`);
+      let last = existing(first.nextSibling, `BUG: serialization markers must be paired`);
 
       while (last && !isMarker(last)) {
-        last = expect(last.nextSibling, `BUG: serialization markers must be paired`);
+        last = existing(last.nextSibling, `BUG: serialization markers must be paired`);
       }
 
       return new ConcreteBounds(this.element, first, last);

@@ -1,5 +1,5 @@
 import { Bounds, Option } from '@glimmer/interfaces';
-import { assert, castToBrowser, clearElement, unwrap } from '@glimmer/util';
+import { assert, castToBrowser, clearElement, unwrapped } from '@glimmer/util';
 import {
   InsertPosition,
   Namespace,
@@ -98,7 +98,7 @@ function shouldApplyFix(document: SimpleDocument, svgNamespace: SVG_NAMESPACE) {
     // FF: Old versions will create a node in the wrong namespace
     if (
       svg.childNodes.length === 1 &&
-      castToBrowser(unwrap(svg.firstChild), 'SVG').namespaceURI === SVG_NAMESPACE
+      castToBrowser(unwrapped(svg.firstChild), 'SVG').namespaceURI === SVG_NAMESPACE
     ) {
       // The test worked as expected, no fix required
       return false;

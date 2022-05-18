@@ -6,7 +6,7 @@ import {
   RuntimeResolver,
   ResolutionTimeConstants,
 } from '@glimmer/interfaces';
-import { expect } from '@glimmer/util';
+import { existing } from '@glimmer/util';
 
 export function resolveComponent(
   resolver: RuntimeResolver,
@@ -16,7 +16,7 @@ export function resolveComponent(
 ): Option<ComponentDefinition> {
   let definition = resolver.lookupComponent(
     name,
-    expect(owner, 'BUG: expected owner when looking up component')
+    existing(owner, 'BUG: expected owner when looking up component')
   );
 
   if (DEBUG && !definition) {

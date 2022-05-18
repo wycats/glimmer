@@ -12,7 +12,7 @@ import {
   Owner,
 } from '@glimmer/interfaces';
 import { childRefFor, createConstRef, Reference } from '@glimmer/reference';
-import { expect, unwrapHandle } from '@glimmer/util';
+import { existing, unwrapHandle } from '@glimmer/util';
 import { ARGS, CONSTANTS } from './symbols';
 import VM, { InternalVM } from './vm/append';
 import { DynamicScopeImpl } from './scope';
@@ -99,7 +99,7 @@ function renderInvocation(
   // Configure VM based on blocks and args just pushed on to the stack.
   vm[ARGS].setup(vm.stack, argNames, blockNames, 0, true);
 
-  const compilable = expect(
+  const compilable = existing(
     reified.compilable,
     'BUG: Expected the root component rendered with renderComponent to have an associated template, set with setComponentTemplate'
   );

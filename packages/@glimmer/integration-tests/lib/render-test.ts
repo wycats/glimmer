@@ -12,16 +12,18 @@ import { inTransaction } from '@glimmer/runtime';
 import {
   ASTPluginBuilder,
   GlimmerSyntaxError,
+  NormalizedPreprocessFields,
+  NormalizedPreprocessOptions,
   preprocess,
-  Source,
   SourceSpan,
+  SourceTemplate,
   symbolicMessage,
   SymbolicSyntaxError,
 } from '@glimmer/syntax';
-import { assert, clearElement, dict, expect } from '@glimmer/util';
+import { assert, clearElement, dict, existing } from '@glimmer/util';
 import { dirtyTagFor } from '@glimmer/validator';
 import { SimpleElement, SimpleNode } from '@simple-dom/interface';
-import { syntaxErrorFor } from './compile';
+import { createTemplate } from './compile';
 import {
   ComponentBlueprint,
   ComponentKind,
@@ -120,53 +122,78 @@ export class RenderTest implements IRenderTest {
     return invocation;
   }
 
-  syntaxError(source: string, error: SymbolicSyntaxError) {
-    const open = source.indexOf('~#');
+  #syntaxError = (options: {
+    compile: (source: AnnotatedSource) => void;
+    input: string;
+    error: SymbolicSyntaxError;
+    options?: Partial<NormalizedPreprocessOptions>;
+  }): void => {
+    const annotated = AnnotatedSource.from(options.input, {
+      module: { name: 'test-module', synthesized: false },
+      ...options.options,
+    });
 
-    if (open === -1) {
-      throw new Error(`Expected to find a ~# in ${source}`);
+    try {
+      options.compile(annotated);
+    } catch (e) {
+      if (e instanceof GlimmerSyntaxError) {
+        // this.assert.deepEqual(
+        //   { span: e.location.loc, code: e.code },
+        //   { span: annotated.span.loc, code: annotated.span.asString() }
+        // );
+
+        equalStrings(e.message, GlimmerSyntaxError.from(options.error, annotated.span).message);
+      } else {
+        this.assert.ok(false, `Expected GlimmerSyntaxError, got a different kind of error`);
+        throw e;
+      }
     }
+  };
 
-    const secondOpen = source.indexOf('~#', open + 1);
-
-    if (secondOpen !== -1) {
-      throw Error(`Expected only one ~# in ${source}`);
+  componentSyntaxError(
+    input: string,
+    {
+      error,
+      mode,
+      scope = {},
+    }: {
+      error: SymbolicSyntaxError;
+      scope?: Record<string, unknown>;
+      mode: 'strict' | 'loose' | 'both';
     }
-
-    const close = source.indexOf('#~');
-
-    if (close === -1) {
-      throw new Error(`Expected to find a #~ in ${source}`);
+  ) {
+    if (mode === 'both') {
+      this.componentSyntaxError(input, { error, mode: 'strict', scope });
+      this.componentSyntaxError(input, { error, mode: 'loose', scope });
+    } else {
+      this.#syntaxError({
+        compile: (annotated) => {
+          createTemplate(
+            annotated.source,
+            { strictMode: mode === 'strict', meta: { moduleName: 'component-module' } },
+            scope
+          );
+        },
+        input,
+        error,
+        options: { module: { name: 'component-module', synthesized: false } },
+      });
     }
+  }
 
-    const secondClose = source.indexOf('#~', close + 1);
-
-    if (secondClose !== -1) {
-      throw Error(`Expected only one #~ in ${source}`);
-    }
-
-    const before = source.slice(0, open);
-    const after = source.slice(close + 2);
-    const at = source.slice(open + 2, close);
-
-    const unannotatedSource = `${before}${at}${after}`;
-
-    const loc = SourceSpan.forCharPositions(
-      Source.from(unannotatedSource, { meta: { moduleName: 'test-module' } }),
-      open,
-      open + at.length
-    );
-
-    const expected = GlimmerSyntaxError.from(error, loc);
-
-    this.assert.throws(
-      () => {
-        preprocess(unannotatedSource, { meta: { moduleName: 'test-module' } });
+  syntaxError(
+    input: string,
+    error: SymbolicSyntaxError,
+    options?: Partial<NormalizedPreprocessFields>
+  ) {
+    this.#syntaxError({
+      compile: (annotated) => {
+        preprocess.normalized(annotated.template, annotated.options);
       },
-      expected,
-
-      `Source: ${unannotatedSource}\n\nError: ${symbolicMessage(error)}`
-    );
+      input,
+      error,
+      options,
+    });
   }
 
   private buildArgs(args: Dict): string {
@@ -455,7 +482,7 @@ export class RenderTest implements IRenderTest {
 
     this.setProperties(properties);
 
-    let result = expect(this.renderResult, 'the test should call render() before rerender()');
+    let result = existing(this.renderResult, 'the test should call render() before rerender()');
 
     try {
       result.env.begin();
@@ -466,7 +493,7 @@ export class RenderTest implements IRenderTest {
   }
 
   destroy(): void {
-    let result = expect(this.renderResult, 'the test should call render() before destroy()');
+    let result = existing(this.renderResult, 'the test should call render() before destroy()');
 
     inTransaction(result.env, () => destroy(result));
   }
@@ -577,4 +604,95 @@ function uniq(arr: any[]) {
     if (accum.indexOf(val) === -1) accum.push(val);
     return accum;
   }, []);
+}
+
+class AnnotatedSource {
+  static from(annotated: string, options?: Partial<NormalizedPreprocessFields>) {
+    const open = annotated.indexOf('~#');
+
+    if (open === -1) {
+      throw new Error(`Expected to find a ~# in ${annotated}`);
+    }
+
+    const secondOpen = annotated.indexOf('~#', open + 1);
+
+    if (secondOpen !== -1) {
+      throw Error(`Expected only one ~# in ${annotated}`);
+    }
+
+    const close = annotated.indexOf('#~');
+
+    if (close === -1) {
+      throw new Error(`Expected to find a #~ in ${annotated}`);
+    }
+
+    const secondClose = annotated.indexOf('#~', close + 1);
+
+    if (secondClose !== -1) {
+      throw Error(`Expected only one #~ in ${annotated}`);
+    }
+
+    const before = annotated.slice(0, open);
+    const after = annotated.slice(close + 2);
+    const at = annotated.slice(open + 2, close);
+
+    const source = `${before}${at}${after}`;
+
+    const template = options
+      ? SourceTemplate.fromNormalized(
+          source,
+          NormalizedPreprocessOptions.fromFields(options ?? {}, {
+            name: 'test-module',
+            synthesized: false,
+          })
+        )
+      : SourceTemplate.from(source, 'test-module');
+
+    const span = SourceSpan.forCharPositions(template, open, open + at.length);
+
+    return new AnnotatedSource(template, source, span);
+  }
+
+  #template: SourceTemplate;
+  #source: string;
+  #span: SourceSpan;
+
+  constructor(template: SourceTemplate, source: string, span: SourceSpan) {
+    this.#template = template;
+    this.#source = source;
+    this.#span = span;
+  }
+
+  get template(): SourceTemplate {
+    return this.#template;
+  }
+
+  get options(): NormalizedPreprocessOptions {
+    return this.#template.options;
+  }
+
+  get module(): string {
+    return this.#template.module;
+  }
+
+  get source(): string {
+    return this.#source;
+  }
+
+  get span(): SourceSpan {
+    return this.#span;
+  }
+}
+
+function equalStrings(actual: string, expected: string, message?: string) {
+  if (actual === expected) {
+    QUnit.assert.strictEqual(actual, expected);
+  } else {
+    QUnit.assert.pushResult({
+      result: false,
+      actual: document.createTextNode(actual),
+      expected: document.createTextNode(expected),
+      message: message ?? `expected strings to be equal`,
+    });
+  }
 }

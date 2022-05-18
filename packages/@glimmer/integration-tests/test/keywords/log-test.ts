@@ -23,10 +23,20 @@ class LogTest extends RenderTest {
 
   assertLog(values: unknown[]) {
     this.assertHTML('');
-    this.assert.strictEqual(this.logCalls.length, values.length);
+    this.assert.strictEqual(
+      this.logCalls.length,
+      values.length,
+      `expected log to be called ${values.length} times, but it was called ${this.logCalls.length}`
+    );
 
     for (let i = 0, len = values.length; i < len; i++) {
-      this.assert.strictEqual(this.logCalls[i], values[i]);
+      this.assert.strictEqual(
+        this.logCalls[i],
+        values[i],
+        `${i}. mismatched log entry. expected log call to be ${stringify(
+          values[i]
+        )}, but it was ${stringify(this.logCalls[i])}`
+      );
     }
   }
 
@@ -81,3 +91,28 @@ class LogTest extends RenderTest {
 }
 
 jitSuite(LogTest);
+
+function stringify(value: unknown) {
+  if (typeof value === 'string') {
+    return `"${value}"`;
+  } else if (typeof value === 'number') {
+    return `${value}`;
+  } else if (typeof value === 'boolean') {
+    return `${value}`;
+  } else if (value === null) {
+    return 'null';
+  } else if (typeof value === 'object') {
+    if (
+      Object.getPrototypeOf(value) === null ||
+      Object.getPrototypeOf(value) === Object.prototype ||
+      ('toJSON' in (value as Record<string, unknown>) &&
+        typeof (value as Record<string, unknown>).toJSON === 'function')
+    ) {
+      return JSON.stringify(value);
+    } else {
+      return String(value);
+    }
+  } else {
+    return `${value}`;
+  }
+}

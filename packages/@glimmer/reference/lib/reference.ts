@@ -1,7 +1,7 @@
 import { DEBUG } from '@glimmer/env';
 import { getProp, setProp } from '@glimmer/global-context';
 import { Option } from '@glimmer/interfaces';
-import { expect, isDict, symbol } from '@glimmer/util';
+import { existing, isDict, symbol } from '@glimmer/util';
 import {
   CONSTANT_TAG,
   consumeTag,
@@ -181,7 +181,7 @@ export function valueForRef<T>(_ref: Reference<T>): T {
 export function updateRef(_ref: Reference, value: unknown) {
   let ref = _ref as ReferenceImpl;
 
-  let update = expect(ref.update, 'called update on a non-updatable reference');
+  let update = existing(ref.update, 'called update on a non-updatable reference');
 
   update(value);
 }

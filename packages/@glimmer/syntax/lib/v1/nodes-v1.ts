@@ -36,6 +36,15 @@ export interface BaseNode {
   loc: SourceSpan;
 }
 
+/**
+ * InternalNodes are not encountered during traversal, because they are
+ * processed before traversal occurs.
+ */
+export interface InternalNode {
+  type: string;
+  loc: SourceSpan;
+}
+
 export interface CommonProgram extends BaseNode {
   body: Statement[];
   blockParams: string[];
@@ -65,11 +74,8 @@ export interface CallParts {
   hash: Hash;
 }
 
-export interface Call extends BaseNode {
+export interface Call extends BaseNode, CallParts {
   name?: Expression;
-  path: Expression;
-  params: Expression[];
-  hash: Hash;
 }
 
 export type CallNode =
@@ -78,22 +84,18 @@ export type CallNode =
   | ElementModifierStatement
   | SubExpression;
 
-export interface MustacheStatement extends BaseNode {
+export interface MustacheStatement extends Call {
   type: 'MustacheStatement';
-  path: Expression;
-  params: Expression[];
-  hash: Hash;
   /** @deprecated */
   escaped: boolean;
   trusting: boolean;
   strip: StripFlags;
 }
 
-export interface BlockStatement extends BaseNode {
+export type MustacheStatementParts = Omit<MustacheStatement, 'type'>;
+
+export interface BlockStatement extends Call {
   type: 'BlockStatement';
-  path: Expression;
-  params: Expression[];
-  hash: Hash;
   program: Block;
   inverse?: Option<Block>;
   openStrip: StripFlags;
@@ -104,11 +106,10 @@ export interface BlockStatement extends BaseNode {
   chained?: boolean;
 }
 
-export interface ElementModifierStatement extends BaseNode {
+export type BlockStatementParts = Omit<BlockStatement, 'type'>;
+
+export interface ElementModifierStatement extends Call {
   type: 'ElementModifierStatement';
-  path: Expression;
-  params: Expression[];
-  hash: Hash;
 }
 
 export interface PartialStatement extends BaseNode {
@@ -184,33 +185,26 @@ export type ExpressionName = 'SubExpression' | 'PathExpression' | LiteralName;
 
 export interface SubExpression extends Call {
   type: 'SubExpression';
-  path: Expression;
-  params: Expression[];
-  hash: Hash;
 }
 
-export interface ThisHead {
+export interface ThisHead extends InternalNode {
   type: 'ThisHead';
-  loc: SourceLocation;
 }
 
-export interface AtHead {
+export interface AtHead extends InternalNode {
   type: 'AtHead';
   name: string;
-  loc: SourceLocation;
 }
 
-export interface VarHead {
+export interface VarHead extends InternalNode {
   type: 'VarHead';
   name: string;
   declared: DeclaredAt;
-  loc: SourceLocation;
 }
 
-export interface FreeVarHead {
+export interface FreeVarHead extends InternalNode {
   type: 'FreeVarHead';
   name: string;
-  loc: SourceLocation;
 }
 
 export type DeclaredAt = 'embedder' | 'internal' | 'free';
@@ -326,6 +320,8 @@ export type Nodes = SharedNodes & {
   ElementNode: ElementNode;
   SubExpression: SubExpression;
   PathExpression: PathExpression;
+
+  // Source fragments (do not represent a statement or expression)
   Hash: Hash;
   HashPair: HashPair;
 };

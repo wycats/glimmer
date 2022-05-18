@@ -21,9 +21,7 @@ export const APPEND_KEYWORDS = keywords('Append')
   .kw('if', toAppend(ifUnlessInlineKeyword('if')))
   .kw('unless', toAppend(ifUnlessInlineKeyword('unless')))
   .kw('yield', {
-    assert(
-      node: ASTv2.AppendContent
-    ): Result<{
+    assert(node: ASTv2.AppendContent): Result<{
       target: SourceSlice;
       positional: ASTv2.PositionalArguments;
     }> {
@@ -31,7 +29,7 @@ export const APPEND_KEYWORDS = keywords('Append')
 
       if (args.named.isEmpty()) {
         return Ok({
-          target: SourceSpan.synthetic('default').toSlice(),
+          target: SourceSpan.synthetic(node.loc.getTemplate(), 'default').toSlice(),
           positional: args.positional,
         });
       } else {

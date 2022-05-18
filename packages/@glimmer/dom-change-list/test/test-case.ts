@@ -41,11 +41,11 @@ export interface Constructor<T = unknown, Prototype = T> {
   prototype: Prototype;
 }
 
-export function module(name: string): (klass: typeof TestCase & Constructor) => void {
-  return function (klass: typeof TestCase & Constructor) {
+export function module(name: string): (klass: Constructor<TestCase>) => void {
+  return function (klass: Constructor<TestCase>) {
     QUnit.module(name);
 
-    let proto = (klass.prototype as any) as Dict<unknown>;
+    let proto = klass.prototype as any as Dict<unknown>;
     for (let prop in proto) {
       const test = proto[prop];
 

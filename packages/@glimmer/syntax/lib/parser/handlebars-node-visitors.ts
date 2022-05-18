@@ -301,23 +301,18 @@ export abstract class HandlebarsNodeVisitors extends Parser {
         );
       }
       if (original.slice(0, 3) === '../') {
-        throw generateSyntaxError(
-          `Changing context using "../" is not supported in Glimmer`,
-          this.source.spanFor(path.loc)
-        );
+        throw GlimmerSyntaxError.from('hbs.syntax.invalid-dotdot', this.source.spanFor(path.loc));
+        // throw generateSyntaxError(
+        //   `Changing context using "../" is not supported in Glimmer`,
+        //   this.source.spanFor(path.loc)
+        // );
       }
       if (original.indexOf('.') !== -1) {
-        throw generateSyntaxError(
-          `Mixing '.' and '/' in paths is not supported in Glimmer; use only '.' to separate property paths`,
-          this.source.spanFor(path.loc)
-        );
+        throw GlimmerSyntaxError.from('hbs.syntax.invalid-slash', this.source.spanFor(path.loc));
       }
       parts = [path.parts.join('/')];
     } else if (original === '.') {
-      throw generateSyntaxError(
-        `'.' is not a supported path in Glimmer; check for a path with a trailing '.'`,
-        this.source.spanFor(path.loc)
-      );
+      throw GlimmerSyntaxError.from('hbs.syntax.invalid-dot', this.source.spanFor(path.loc));
     } else {
       parts = path.parts;
     }
@@ -342,10 +337,10 @@ export abstract class HandlebarsNodeVisitors extends Parser {
     if (thisHead) {
       pathHead = {
         type: 'ThisHead',
-        loc: {
+        loc: this.source.spanFor({
           start: path.loc.start,
           end: { line: path.loc.start.line, column: path.loc.start.column + 4 },
-        },
+        }),
       };
     } else if (path.data) {
       let head = parts.shift();
@@ -360,10 +355,10 @@ export abstract class HandlebarsNodeVisitors extends Parser {
       pathHead = {
         type: 'AtHead',
         name: `@${head}`,
-        loc: {
+        loc: this.source.spanFor({
           start: path.loc.start,
           end: { line: path.loc.start.line, column: path.loc.start.column + head.length + 1 },
-        },
+        }),
       };
     } else {
       let head = parts.shift();

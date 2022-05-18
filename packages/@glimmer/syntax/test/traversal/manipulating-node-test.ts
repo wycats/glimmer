@@ -2,11 +2,13 @@ import { astEqual } from '../support';
 import {
   preprocess as parse,
   traverse,
-  builders as b,
-  AST,
+  ASTv1 as AST,
   cannotRemoveNode,
   cannotReplaceNode,
+  Buildersv1,
 } from '../..';
+
+const b = Buildersv1.forModule('', 'test-module');
 
 QUnit.module('[glimmer-syntax] Traversal - manipulating');
 

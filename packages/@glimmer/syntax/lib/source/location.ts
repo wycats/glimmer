@@ -1,11 +1,16 @@
 import { PresentArray } from '@glimmer/interfaces';
 import { isPresent } from '@glimmer/util';
 
+import { SourceTemplate } from './source';
 import { SourceSpan } from './span';
 
 export interface SourceLocation {
   start: SourcePosition;
   end: SourcePosition;
+}
+
+export interface SourceLocationTemplate extends SourceLocation {
+  template: SourceTemplate;
 }
 
 export interface SourcePosition {

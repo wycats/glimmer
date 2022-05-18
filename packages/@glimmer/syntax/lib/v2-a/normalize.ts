@@ -5,11 +5,11 @@ import Printer from '../generation/printer';
 import { NormalizedPreprocessOptions } from '../parser/preprocess';
 import { SourceLocation } from '../source/location';
 import { SourceSlice } from '../source/slice';
-import { Source } from '../source/source';
+import { SourceTemplate } from '../source/source';
 import { SourceSpan } from '../source/span';
 import { SpanList } from '../source/span-list';
 import { BlockSymbolTable, ProgramSymbolTable, SymbolTable } from '../symbol-table';
-import { generateSyntaxError } from '../syntax-error';
+import { generateSyntaxError, GlimmerSyntaxError } from '../syntax-error';
 import { isLowerCase, isUpperCase } from '../utils';
 import * as ASTv1 from '../v1/api';
 import { Phase1Builder } from '../v1/parser-builders';
@@ -25,7 +25,7 @@ import {
   SexpSyntaxContext,
 } from './loose-resolution';
 
-export function normalize(source: Source): [ast: ASTv2.Template, locals: string[]] {
+export function normalize(source: SourceTemplate): [ast: ASTv2.Template, locals: string[]] {
   const ast = source.preprocess();
 
   let top = SymbolTable.top(
@@ -63,7 +63,7 @@ export class BlockContext<Table extends SymbolTable = SymbolTable> {
   readonly ast: Phase1Builder;
 
   constructor(
-    readonly source: Source,
+    readonly source: SourceTemplate,
     private readonly options: NormalizedPreprocessOptions,
     readonly table: Table
   ) {
@@ -82,7 +82,9 @@ export class BlockContext<Table extends SymbolTable = SymbolTable> {
   resolutionFor<N extends ASTv1.CallNode | ASTv1.PathExpression>(
     node: N,
     resolution: Resolution<N>
-  ): { resolution: ASTv2.FreeVarResolution } | { resolution: 'error'; path: string; head: string } {
+  ):
+    | { resolution: ASTv2.FreeVarResolution }
+    | { resolution: 'error'; path: string; head: { name: string; span: SourceSpan } } {
     if (this.strict) {
       return { resolution: ASTv2.STRICT_RESOLUTION };
     }
@@ -94,7 +96,7 @@ export class BlockContext<Table extends SymbolTable = SymbolTable> {
         return {
           resolution: 'error',
           path: printPath(node),
-          head: printHead(node),
+          head: { name: printHead(node), span: node.loc },
         };
       }
 
@@ -467,6 +469,7 @@ class ElementNormalizer {
       componentArgs: args,
       modifiers,
       comments: comments.map((c) => new StatementNormalizer(this.ctx).MustacheCommentStatement(c)),
+      template: element.loc.getTemplate(),
     });
 
     let children = new ElementChildren(el, loc, childNodes, this.ctx);
@@ -497,9 +500,9 @@ class ElementNormalizer {
     let resolution = this.ctx.resolutionFor(m, ModifierSyntaxContext);
 
     if (resolution.resolution === 'error') {
-      throw generateSyntaxError(
-        `You attempted to invoke a path (\`{{#${resolution.path}}}\`) as a modifier, but ${resolution.head} was not in scope. Try adding \`this\` to the beginning of the path`,
-        m.loc
+      throw GlimmerSyntaxError.from(
+        ['modifier.missing-binding', { path: resolution.path, variable: resolution.head.name }],
+        resolution.head.span
       );
     }
 
@@ -677,9 +680,9 @@ class ElementNormalizer {
 
     if (this.ctx.strict && !inScope) {
       if (uppercase) {
-        throw generateSyntaxError(
-          `Attempted to invoke a component that was not in scope in a strict mode template, \`<${variable}>\`. If you wanted to create an element with that name, convert it to lowercase - \`<${variable.toLowerCase()}>\``,
-          loc
+        throw GlimmerSyntaxError.from(
+          ['component.missing-binding', variable],
+          loc.sliceStartChars({ skipStart: 1, chars: variable.length })
         );
       }
 
@@ -916,7 +919,7 @@ class ElementChildren extends Children {
     } else {
       return [
         this.block.phase2.namedBlock(
-          SourceSlice.synthetic('default'),
+          SourceSlice.synthetic(this.loc.getTemplate(), 'default'),
           this.block.phase2.block(table, this.nonBlockChildren, this.loc),
           this.loc
         ),

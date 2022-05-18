@@ -9,7 +9,7 @@ import {
 } from '@simple-dom/interface';
 import { Dict, Option, Bounds } from '@glimmer/interfaces';
 import { ConcreteBounds } from '../bounds';
-import { expect } from '@glimmer/util';
+import { existing } from '@glimmer/util';
 
 // http://www.w3.org/TR/html/syntax.html#html-integration-point
 const SVG_INTEGRATION_POINTS = { foreignObject: 1, desc: 1, title: 1 };
@@ -77,10 +77,10 @@ export class DOMOperations {
 
     if (nextSibling === null) {
       parent.insertAdjacentHTML(InsertPosition.beforeend, html);
-      last = expect(parent.lastChild, 'bug in insertAdjacentHTML?');
+      last = existing(parent.lastChild, 'bug in insertAdjacentHTML?');
     } else if (nextSibling instanceof HTMLElement) {
       nextSibling.insertAdjacentHTML('beforebegin', html);
-      last = expect(nextSibling.previousSibling, 'bug in insertAdjacentHTML?');
+      last = existing(nextSibling.previousSibling, 'bug in insertAdjacentHTML?');
     } else {
       // Non-element nodes do not support insertAdjacentHTML, so add an
       // element and call it on that element. Then remove the element.
@@ -91,11 +91,11 @@ export class DOMOperations {
 
       parent.insertBefore(uselessElement, nextSibling);
       uselessElement.insertAdjacentHTML(InsertPosition.beforebegin, html);
-      last = expect(uselessElement.previousSibling, 'bug in insertAdjacentHTML?');
+      last = existing(uselessElement.previousSibling, 'bug in insertAdjacentHTML?');
       parent.removeChild(uselessElement);
     }
 
-    let first = expect(prev ? prev.nextSibling : parent.firstChild, 'bug in insertAdjacentHTML?');
+    let first = existing(prev ? prev.nextSibling : parent.firstChild, 'bug in insertAdjacentHTML?');
     return new ConcreteBounds(parent, first, last);
   }
 
@@ -113,7 +113,7 @@ export function moveNodesBefore(
   target: SimpleElement,
   nextSibling: Option<SimpleNode>
 ): Bounds {
-  let first = expect(source.firstChild, 'source is empty');
+  let first = existing(source.firstChild, 'source is empty');
   let last: SimpleNode = first;
   let current: Option<SimpleNode> = first;
 

@@ -17,7 +17,7 @@ function assertHasBlockKeyword(type: string) {
     }
 
     if (!positionals || positionals.isEmpty()) {
-      return Ok(SourceSlice.synthetic('default'));
+      return Ok(SourceSlice.synthetic(node.loc.getTemplate(), 'default'));
     } else if (positionals.exprs.length === 1) {
       let positional = positionals.exprs[0];
       if (ASTv2.isLiteral(positional, 'string')) {

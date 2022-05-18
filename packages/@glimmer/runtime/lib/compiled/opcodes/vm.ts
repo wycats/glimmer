@@ -23,7 +23,7 @@ import {
   endTrackFrame,
   consumeTag,
 } from '@glimmer/validator';
-import { assert, decodeHandle, decodeImmediate, expect, isHandle } from '@glimmer/util';
+import { assert, decodeHandle, decodeImmediate, existing, isHandle } from '@glimmer/util';
 import {
   CheckNumber,
   check,
@@ -163,7 +163,7 @@ APPEND_OPCODES.add(Op.InvokeYield, (vm) => {
     return;
   }
 
-  let invokingScope = expect(scope, 'BUG: expected scope');
+  let invokingScope = existing(scope, 'BUG: expected scope');
 
   // If necessary, create a child scope
   {
@@ -290,7 +290,7 @@ export class JumpIfNotModifiedOpcode implements UpdatingOpcode {
 
     if (!vm.alwaysRevalidate && validateTag(tag, lastRevision)) {
       consumeTag(tag);
-      vm.goto(expect(target, 'VM BUG: Target must be set before attempting to jump'));
+      vm.goto(existing(target, 'VM BUG: Target must be set before attempting to jump'));
     }
   }
 

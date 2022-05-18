@@ -9,7 +9,7 @@ import {
   RuntimeResolver,
 } from '@glimmer/interfaces';
 import { createComputeRef, Reference, valueForRef } from '@glimmer/reference';
-import { expect, isObject } from '@glimmer/util';
+import { existing, isObject } from '@glimmer/util';
 import { curry, isCurriedType } from '../curried-value';
 
 export default function createCurryRef(
@@ -42,7 +42,7 @@ export default function createCurryRef(
           );
         }
 
-        let resolvedDefinition = expect(
+        let resolvedDefinition = existing(
           resolver,
           'BUG: expected resolver for curried component definitions'
         ).lookupComponent(value, owner);

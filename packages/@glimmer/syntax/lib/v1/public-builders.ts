@@ -1,42 +1,19 @@
 import { Dict, Option } from '@glimmer/interfaces';
 import { LOCAL_DEBUG } from '@glimmer/local-debug-flags';
-import { assert, assign, deprecate, isPresent } from '@glimmer/util';
+import { assert, deprecate, existing, isPresent } from '@glimmer/util';
 
-import { NormalizedPreprocessOptions } from '../parser/preprocess';
+import { ModuleName, NormalizedPreprocessOptions } from '../parser/preprocess';
 import { Scope } from '../parser/scope';
-import { SourceLocation, SourcePosition, SYNTHETIC_LOCATION } from '../source/location';
-import { Source } from '../source/source';
+import { SourceLocation, SourcePosition } from '../source/location';
+import { SourceTemplate } from '../source/source';
 import { SourceSpan } from '../source/span';
 import * as ASTv1 from './api';
 import { PathExpressionImplV1 } from './legacy-interop';
-
-let _SOURCE: Source | undefined;
-
-function SOURCE(): Source {
-  if (!_SOURCE) {
-    _SOURCE = Source.fromNormalized(
-      '',
-      NormalizedPreprocessOptions.forModuleName('an unknown module')
-    );
-  }
-
-  return _SOURCE;
-}
-
-// const SOURCE = new Source('', '(tests)');
 
 // Statements
 
 export type BuilderHead = string | ASTv1.Expression;
 export type TagDescriptor = string | { name: string; selfClosing: boolean };
-
-function tryLoc(source: string | ASTv1.Node): SourceLocation | undefined {
-  if (typeof source === 'string') {
-    return undefined;
-  } else {
-    return source.loc;
-  }
-}
 
 // Nodes
 
@@ -76,110 +53,321 @@ export interface BuildElementOptions {
   children?: ASTv1.Statement[];
   comments?: ElementComment[];
   blockParams?: string[];
-  loc?: SourceSpan;
+  loc?: ToSourceSpan;
+}
+
+export type ToSourceSpan =
+  | {
+      span: SourceSpan;
+    }
+  | {
+      hbs: SourceLocation;
+      template: SourceTemplate;
+    }
+  | SourceLocation
+  | SourceSpan
+  | undefined;
+
+function toSourceSpan(from: ToSourceSpan, template: SourceTemplate): SourceSpan {
+  if (from === undefined) {
+    return SourceSpan.NON_EXISTENT(template);
+  } else if (from instanceof SourceSpan) {
+    return from;
+  } else if ('span' in from) {
+    return from.span;
+  } else if ('template' in from) {
+    return SourceSpan.forHbsLoc(from.template, from.hbs);
+  } else {
+    return SourceSpan.forHbsLoc(template, from);
+  }
+}
+
+export interface CallOptions {
+  loc: ToSourceSpan;
+  params?: ASTv1.Expression[];
+  hash?: ASTv1.Hash;
+}
+
+export interface MustacheOptions extends CallOptions {
+  raw?: boolean;
+  strip?: ASTv1.StripFlags;
+}
+
+export interface BlockStripFlagsOptions {
+  open?: ASTv1.StripFlags;
+  else?: ASTv1.StripFlags;
+  close?: ASTv1.StripFlags;
+}
+
+export interface BlockOptions extends CallOptions {
+  blocks: {
+    default: ASTv1.PossiblyDeprecatedBlock;
+    else?: ASTv1.PossiblyDeprecatedBlock;
+  };
+  strip?: BlockStripFlagsOptions;
+}
+
+export interface BlockItselfOptions {
+  body?: ASTv1.Statement[];
+  blockParams?: string[];
+  chained?: boolean;
+  loc: ToSourceSpan;
+}
+
+function callOptions(
+  path: string | ASTv1.Expression,
+  scope: Scope,
+  options: CallOptions,
+  template: SourceTemplate
+): ASTv1.CallParts & { loc: SourceSpan } {
+  const span = toSourceSpan(options.loc, template);
+
+  const builtPath = typeof path === 'string' ? buildPath(path, { span }, scope, template) : path;
+
+  return {
+    loc: span,
+    path: builtPath,
+    params: options?.params ?? [],
+    hash: options?.hash ?? {
+      type: 'Hash',
+      pairs: [],
+      loc: SourceSpan.NON_EXISTENT(span.getTemplate()),
+    },
+  };
+}
+
+function mustacheOptions(
+  path: string | ASTv1.Expression,
+  scope: Scope,
+  options: MustacheOptions,
+  template: SourceTemplate
+): ASTv1.MustacheStatementParts {
+  const call = callOptions(path, scope, options, template);
+
+  return {
+    ...call,
+    escaped: !options.raw,
+    trusting: !!options.raw,
+    strip: toStripFlags(options.strip),
+  };
+}
+
+function toAllStripFlags(
+  options?: BlockStripFlagsOptions
+): Pick<ASTv1.BlockStatementParts, 'inverseStrip' | 'closeStrip' | 'openStrip'> {
+  return {
+    inverseStrip: toStripFlags(options?.else),
+    closeStrip: toStripFlags(options?.close),
+    openStrip: toStripFlags(options?.open),
+  };
+}
+
+function blockOptions(
+  path: string | ASTv1.Expression,
+  scope: Scope,
+  options: BlockOptions,
+  template: SourceTemplate
+): ASTv1.BlockStatementParts {
+  const parts = {
+    ...callOptions(path, scope, options, template),
+    program: toBlock(options.blocks.default),
+    ...toAllStripFlags(options?.strip),
+  };
+
+  if (options.blocks.else) {
+    (parts as Partial<ASTv1.BlockStatementParts>).inverse = toBlock(options.blocks.else);
+  }
+
+  return parts;
+}
+
+function toBlock(block: ASTv1.PossiblyDeprecatedBlock): ASTv1.Block {
+  if (block.type === 'Template') {
+    if (LOCAL_DEBUG) {
+      deprecate(`b.program is deprecated. Use b.blockItself instead.`);
+    }
+
+    return { ...block, type: 'Block' };
+  } else {
+    return block;
+  }
+}
+
+function toStripFlags(flags: ASTv1.StripFlags | undefined) {
+  if (flags === undefined) {
+    return { open: false, close: false };
+  } else {
+    return flags;
+  }
+}
+
+// function buildPath(head: ASTv1.Expression): ASTv1.Expression;
+// function buildPath(head: string, template: SourceTemplate): ASTv1.Expression;
+// function buildPath(head: string | ASTv1.Expression, template?: SourceTemplate): ASTv1.Expression {
+//   if (typeof head === 'string') {
+//     return buildPath(head, template);
+//   } else {
+//     return head;
+//   }
+// }
+
+export interface MustacheOptions extends CallOptions {
+  raw?: boolean;
+  strip?: ASTv1.StripFlags;
 }
 
 // Miscellaneous
 
 export class PublicBuilders {
-  static top(options: NormalizedPreprocessOptions): PublicBuilders {
-    return new PublicBuilders(Scope.top(options));
+  static top(template: SourceTemplate): PublicBuilders {
+    return new PublicBuilders(Scope.top(template.options), template);
   }
 
-  static default(): PublicBuilders {
-    return PublicBuilders.top(NormalizedPreprocessOptions.forModuleName('an unknown module'));
+  static forSynthesizedModule(input: string, module: string | ModuleName): PublicBuilders {
+    return PublicBuilders.forModule(
+      input,
+      typeof module === 'string' ? { name: module, synthesized: true } : module
+    );
+  }
+
+  static forModule(input: string, module: string | ModuleName): PublicBuilders {
+    const options = NormalizedPreprocessOptions.default(
+      typeof module === 'string' ? { name: module, synthesized: false } : module
+    );
+    const template = SourceTemplate.fromNormalized(input, options);
+    return PublicBuilders.top(template);
   }
 
   readonly #scope: Scope;
+  readonly #template: SourceTemplate;
 
-  constructor(scope: Scope) {
+  constructor(scope: Scope, template: SourceTemplate) {
     this.#scope = scope;
+    this.#template = template;
   }
 
   mustache(
-    path: BuilderHead | ASTv1.Literal,
+    path: string | ASTv1.Expression,
     params?: ASTv1.Expression[],
     hash?: ASTv1.Hash,
     raw?: boolean,
     loc?: SourceLocation,
     strip?: ASTv1.StripFlags
+  ): ASTv1.MustacheStatement;
+  mustache(path: string | ASTv1.Expression, options?: MustacheOptions): ASTv1.MustacheStatement;
+  mustache(
+    path: string | ASTv1.Expression,
+    params?: MustacheOptions | ASTv1.Expression[],
+    hash?: ASTv1.Hash,
+    raw?: boolean,
+    loc?: ToSourceSpan,
+    strip?: ASTv1.StripFlags
   ): ASTv1.MustacheStatement {
-    if (typeof path === 'string') {
-      path = this.path(path, tryLoc(path));
-    }
+    const normalize = (): MustacheOptions => {
+      if (params === undefined) {
+        return {
+          loc: undefined,
+        };
+      } else if (Array.isArray(params)) {
+        return {
+          params,
+          hash,
+          raw,
+          strip,
+          loc,
+        };
+      } else {
+        return params;
+      }
+    };
 
     return {
       type: 'MustacheStatement',
-      path,
-      params: params || [],
-      hash: hash || this.hash([]),
-      escaped: !raw,
-      trusting: !!raw,
-      loc: this.loc(loc || null),
-      strip: strip || { open: false, close: false },
+      ...mustacheOptions(path, this.#scope, normalize(), this.#template),
     };
   }
 
   block(
-    path: BuilderHead,
+    path: string | ASTv1.Expression,
     params: Option<ASTv1.Expression[]>,
     hash: Option<ASTv1.Hash>,
-    _defaultBlock: ASTv1.PossiblyDeprecatedBlock,
-    _elseBlock?: Option<ASTv1.PossiblyDeprecatedBlock>,
+    defaultBlock: ASTv1.PossiblyDeprecatedBlock,
+    elseBlock?: Option<ASTv1.PossiblyDeprecatedBlock>,
+    loc?: SourceLocation,
+    openStrip?: ASTv1.StripFlags,
+    inverseStrip?: ASTv1.StripFlags,
+    closeStrip?: ASTv1.StripFlags
+  ): ASTv1.BlockStatement;
+  block(path: string | ASTv1.Expression, options: BlockOptions): ASTv1.BlockStatement;
+  block(
+    path: string | ASTv1.Expression,
+    params: Option<ASTv1.Expression[]> | BlockOptions,
+    hash?: Option<ASTv1.Hash>,
+    defaultBlock?: ASTv1.PossiblyDeprecatedBlock,
+    elseBlock?: Option<ASTv1.PossiblyDeprecatedBlock>,
     loc?: SourceLocation,
     openStrip?: ASTv1.StripFlags,
     inverseStrip?: ASTv1.StripFlags,
     closeStrip?: ASTv1.StripFlags
   ): ASTv1.BlockStatement {
-    let defaultBlock: ASTv1.Block;
-    let elseBlock: Option<ASTv1.Block> | undefined;
-
-    if (_defaultBlock.type === 'Template') {
-      if (LOCAL_DEBUG) {
-        deprecate(`b.program is deprecated. Use b.blockItself instead.`);
+    const normalize = (): BlockOptions => {
+      if (params === null || Array.isArray(params)) {
+        return {
+          params: params ?? undefined,
+          hash: hash ?? undefined,
+          blocks: {
+            default: existing(defaultBlock, { variable: 'defaultBlock' }),
+            else: elseBlock ?? undefined,
+          },
+          strip: {
+            open: openStrip ?? undefined,
+            close: closeStrip ?? undefined,
+            else: inverseStrip ?? undefined,
+          },
+          loc,
+        };
+      } else {
+        return params;
       }
-
-      defaultBlock = assign({}, _defaultBlock, { type: 'Block' }) as unknown as ASTv1.Block;
-    } else {
-      defaultBlock = _defaultBlock;
-    }
-
-    if (_elseBlock !== undefined && _elseBlock !== null && _elseBlock.type === 'Template') {
-      if (LOCAL_DEBUG) {
-        deprecate(`b.program is deprecated. Use b.blockItself instead.`);
-      }
-
-      elseBlock = assign({}, _elseBlock, { type: 'Block' }) as unknown as ASTv1.Block;
-    } else {
-      elseBlock = _elseBlock;
-    }
+    };
 
     return {
       type: 'BlockStatement',
-      path: this.path(path, tryLoc(path)),
-      params: params || [],
-      hash: hash || this.hash([]),
-      program: defaultBlock || null,
-      inverse: elseBlock || null,
-      loc: this.loc(loc || null),
-      openStrip: openStrip || { open: false, close: false },
-      inverseStrip: inverseStrip || { open: false, close: false },
-      closeStrip: closeStrip || { open: false, close: false },
+      ...blockOptions(path, this.#scope, normalize(), this.#template),
     };
   }
 
   elementModifier(
-    path: BuilderHead | ASTv1.Expression,
+    path: string | ASTv1.Expression,
     params?: ASTv1.Expression[],
     hash?: ASTv1.Hash,
-    loc?: Option<SourceLocation>
+    loc?: Option<ToSourceSpan>
+  ): ASTv1.ElementModifierStatement;
+  elementModifier(
+    path: string | ASTv1.Expression,
+    options: CallOptions
+  ): ASTv1.ElementModifierStatement;
+  elementModifier(
+    path: string | ASTv1.Expression,
+    params?: CallOptions | ASTv1.Expression[],
+    hash?: ASTv1.Hash,
+    loc?: Option<ToSourceSpan>
   ): ASTv1.ElementModifierStatement {
+    const normalize = (): CallOptions => {
+      if (params === undefined || Array.isArray(params)) {
+        return {
+          params: params ?? undefined,
+          hash: hash ?? undefined,
+          loc: loc ?? undefined,
+        };
+      } else {
+        return params;
+      }
+    };
+
     return {
       type: 'ElementModifierStatement',
-      path: this.path(path, tryLoc(path)),
-      params: params || [],
-      hash: hash || this.hash([]),
-      loc: this.loc(loc || null),
+      ...callOptions(path, this.#scope, normalize(), this.#template),
     };
   }
 
@@ -201,25 +389,25 @@ export class PublicBuilders {
     };
   }
 
-  comment(value: string, loc?: SourceLocation): ASTv1.CommentStatement {
+  comment(value: string, loc?: ToSourceSpan): ASTv1.CommentStatement {
     return {
       type: 'CommentStatement',
       value: value,
-      loc: this.loc(loc || null),
+      loc: toSourceSpan(loc, this.#template),
     };
   }
 
-  mustacheComment(value: string, loc?: SourceLocation): ASTv1.MustacheCommentStatement {
+  mustacheComment(value: string, loc?: ToSourceSpan): ASTv1.MustacheCommentStatement {
     return {
       type: 'MustacheCommentStatement',
       value: value,
-      loc: this.loc(loc || null),
+      loc: toSourceSpan(loc, this.#template),
     };
   }
 
   concat(
     parts: (ASTv1.TextNode | ASTv1.MustacheStatement)[],
-    loc?: SourceLocation
+    loc?: ToSourceSpan
   ): ASTv1.ConcatStatement {
     if (!isPresent(parts)) {
       throw new Error(`b.concat requires at least one part`);
@@ -228,7 +416,7 @@ export class PublicBuilders {
     return {
       type: 'ConcatStatement',
       parts: parts || [],
-      loc: this.loc(loc || null),
+      loc: toSourceSpan(loc, this.#template),
     };
   }
 
@@ -258,67 +446,80 @@ export class PublicBuilders {
       modifiers: modifiers || [],
       comments: (comments as ASTv1.MustacheCommentStatement[]) || [],
       children: children || [],
-      loc: this.loc(loc || null),
+      loc: toSourceSpan(loc, this.#template),
     };
   }
 
-  attr(name: string, value: ASTv1.AttrNode['value'], loc?: SourceLocation): ASTv1.AttrNode {
+  attr(name: string, value: ASTv1.AttrNode['value'], loc?: ToSourceSpan): ASTv1.AttrNode {
     return {
       type: 'AttrNode',
       name: name,
       value: value,
-      loc: this.loc(loc || null),
+      loc: toSourceSpan(loc, this.#template),
     };
   }
 
-  text(chars?: string, loc?: SourceLocation): ASTv1.TextNode {
+  text(chars: string, loc?: ToSourceSpan): ASTv1.TextNode {
     return {
       type: 'TextNode',
       chars: chars || '',
-      loc: this.loc(loc || null),
+      loc: toSourceSpan(loc, this.#template),
     };
   }
 
   // Expressions
 
   sexpr(
-    path: BuilderHead,
+    path: string | ASTv1.Expression,
     params?: ASTv1.Expression[],
     hash?: ASTv1.Hash,
-    loc?: SourceLocation
+    loc?: ToSourceSpan
+  ): ASTv1.SubExpression;
+  sexpr(path: string | ASTv1.Expression, options: CallOptions): ASTv1.SubExpression;
+  sexpr(
+    path: string | ASTv1.Expression,
+    params?: ASTv1.Expression[] | CallOptions,
+    hash?: ASTv1.Hash,
+    loc?: ToSourceSpan
   ): ASTv1.SubExpression {
+    const normalize = (): CallOptions => {
+      if (params === undefined || Array.isArray(params)) {
+        return {
+          params: params,
+          hash: hash,
+          loc: toSourceSpan(loc, this.#template),
+        };
+      } else {
+        return params;
+      }
+    };
+
     return {
       type: 'SubExpression',
-      path: this.path(path, tryLoc(path)),
-      params: params || [],
-      hash: hash || this.hash([]),
-      loc: this.loc(loc || null),
+      ...callOptions(path, this.#scope, normalize(), this.#template),
     };
   }
 
-  fullPath(head: ASTv1.PathHead, tail: string[], loc: SourceLocation): ASTv1.PathExpression {
+  fullPath(head: ASTv1.PathHead, tail: string[], loc: ToSourceSpan): ASTv1.PathExpression {
     let { original: originalHead, parts: headParts } = headToString(head);
     let parts = [...headParts, ...tail];
     let original = [...originalHead, ...parts].join('.');
 
-    return new PathExpressionImplV1(original, head, tail, this.loc(loc || null), this.#scope);
+    return new PathExpressionImplV1(
+      original,
+      head,
+      tail,
+      toSourceSpan(loc, this.#template),
+      this.#scope
+    );
   }
 
-  path(
-    path: ASTv1.PathExpression | string | { head: string; tail: string[] },
-    loc?: SourceLocation
-  ): ASTv1.PathExpression;
-  path(path: ASTv1.Expression, loc?: SourceLocation): ASTv1.Expression;
-  path(path: BuilderHead | ASTv1.Expression, loc?: SourceLocation): ASTv1.Expression;
-  path(
-    path: BuilderHead | ASTv1.Expression | { head: string; tail: string[] },
-    loc?: SourceLocation
-  ): ASTv1.Expression {
+  path(path: string | ASTv1.Expression, loc?: ToSourceSpan): ASTv1.Expression {
     if (typeof path !== 'string') {
       if ('type' in path) {
         return path;
       } else {
-        let { head, tail } = this.processHead(path.head, SourceSpan.broken());
+        let { head, tail, span } = processHead(path, this.#scope, loc, this.#template);
 
         assert(
           tail.length === 0,
@@ -331,36 +532,36 @@ export class PublicBuilders {
           [originalHead, ...tail].join('.'),
           head,
           tail,
-          this.loc(loc || null),
+          span,
           this.#scope
         );
       }
     }
 
-    let { head, tail } = this.processHead(path, SourceSpan.broken());
+    let { head, tail, span } = processHead(path, this.#scope, loc, this.#template);
 
-    return new PathExpressionImplV1(path, head, tail, this.loc(loc || null), this.#scope);
+    return new PathExpressionImplV1(path, head, tail, span, this.#scope);
   }
 
-  this(loc: SourceLocation): ASTv1.PathHead {
+  this(loc?: ToSourceSpan): ASTv1.PathHead {
     return {
       type: 'ThisHead',
-      loc: this.loc(loc || null),
+      loc: toSourceSpan(loc, this.#template),
     };
   }
 
-  atName(name: string, loc: SourceLocation): ASTv1.PathHead {
+  atName(name: string, loc?: ToSourceSpan): ASTv1.PathHead {
     // the `@` should be included so we have a complete source range
     assert(name[0] === '@', `call builders.at() with a string that starts with '@'`);
 
     return {
       type: 'AtHead',
       name,
-      loc: this.loc(loc || null),
+      loc: toSourceSpan(loc, this.#template),
     };
   }
 
-  var(name: string, loc: SourceLocation): ASTv1.PathHead {
+  var(name: string, loc?: ToSourceSpan): ASTv1.PathHead {
     assert(name !== 'this', `You called builders.var() with 'this'. Call builders.this instead`);
     assert(
       name[0] !== '@',
@@ -371,44 +572,11 @@ export class PublicBuilders {
       type: 'VarHead',
       name,
       declared: this.#scope.declaration(name),
-      loc: this.loc(loc || null),
+      loc: toSourceSpan(loc, this.#template),
     };
   }
 
-  private processHead(
-    original: string,
-    loc: SourceLocation
-  ): { head: ASTv1.PathHead; tail: string[] } {
-    let [head, ...tail] = original.split('.');
-    let headNode: ASTv1.PathHead;
-
-    if (head === 'this') {
-      headNode = {
-        type: 'ThisHead',
-        loc: this.loc(loc || null),
-      };
-    } else if (head[0] === '@') {
-      headNode = {
-        type: 'AtHead',
-        name: head,
-        loc: this.loc(loc || null),
-      };
-    } else {
-      headNode = {
-        type: 'VarHead',
-        name: head,
-        declared: this.#scope.declaration(name),
-        loc: this.loc(loc || null),
-      };
-    }
-
-    return {
-      head: headNode,
-      tail,
-    };
-  }
-
-  head(head: string, loc: SourceLocation): ASTv1.PathHead {
+  head(head: string, loc: ToSourceSpan): ASTv1.PathHead {
     if (head[0] === '@') {
       return this.atName(head, loc);
     } else if (head === 'this') {
@@ -418,20 +586,20 @@ export class PublicBuilders {
     }
   }
 
-  buildNamedBlockName(name: string, loc?: SourceLocation): ASTv1.NamedBlockName {
+  buildNamedBlockName(name: string, loc?: ToSourceSpan): ASTv1.NamedBlockName {
     return {
       type: 'NamedBlockName',
       name,
-      loc: this.loc(loc || null),
+      loc: toSourceSpan(loc, this.#template),
     };
   }
 
-  literal<T extends ASTv1.Literal>(type: T['type'], value: T['value'], loc?: SourceLocation): T {
+  literal<T extends ASTv1.Literal>(type: T['type'], value: T['value'], loc?: ToSourceSpan): T {
     return {
       type,
       value,
       original: value,
-      loc: this.loc(loc || null),
+      loc: toSourceSpan(loc, this.#template),
     } as T;
   }
 
@@ -443,68 +611,86 @@ export class PublicBuilders {
 
   // Syntax Fragments
 
-  hash(pairs?: ASTv1.HashPair[], loc?: SourceLocation): ASTv1.Hash {
+  hash(pairs?: ASTv1.HashPair[], loc?: ToSourceSpan): ASTv1.Hash {
     return {
       type: 'Hash',
-      pairs: pairs || [],
-      loc: this.loc(loc || null),
+      pairs: pairs ?? [],
+      loc: toSourceSpan(loc, this.#template),
     };
   }
 
-  pair(key: string, value: ASTv1.Expression, loc?: SourceLocation): ASTv1.HashPair {
+  pair(key: string, value: ASTv1.Expression, loc?: ToSourceSpan): ASTv1.HashPair {
     return {
       type: 'HashPair',
       key: key,
       value,
-      loc: this.loc(loc || null),
+      loc: toSourceSpan(loc, this.#template),
     };
   }
 
   program(body?: ASTv1.Statement[], blockParams?: string[], loc?: SourceLocation): ASTv1.Template {
     return {
       type: 'Template',
-      body: body || [],
-      blockParams: blockParams || [],
-      loc: this.loc(loc || null),
+      body: body ?? [],
+      blockParams: blockParams ?? [],
+      loc: toSourceSpan(loc, this.#template),
     };
   }
 
   blockItself(
     body?: ASTv1.Statement[],
     blockParams?: string[],
-    chained = false,
+    chained?: boolean,
     loc?: SourceLocation
+  ): ASTv1.Block;
+  blockItself(options: BlockItselfOptions): ASTv1.Block;
+  blockItself(
+    body?: ASTv1.Statement[] | BlockItselfOptions,
+    blockParams?: string[],
+    chained = false,
+    loc?: ToSourceSpan
   ): ASTv1.Block {
+    const normalize = (): BlockItselfOptions => {
+      if (body === undefined || Array.isArray(body)) {
+        return {
+          body,
+          blockParams,
+          chained,
+          loc,
+        };
+      } else {
+        return body;
+      }
+    };
+
+    const normalized = normalize();
+
     return {
       type: 'Block',
-      body: body || [],
-      blockParams: blockParams || [],
-      chained,
-      loc: this.loc(loc || null),
+      body: normalized.body ?? [],
+      blockParams: normalized.blockParams ?? [],
+      chained: normalized.chained,
+      loc: toSourceSpan(normalized.loc, this.#template),
     };
   }
 
-  buildTemplate(
-    body?: ASTv1.Statement[],
-    blockParams?: string[],
-    loc?: SourceLocation
-  ): ASTv1.Template {
+  buildTemplate({
+    body,
+    blockParams,
+    loc,
+  }: {
+    body?: ASTv1.Statement[];
+    blockParams?: string[];
+    loc: ToSourceSpan;
+  }): ASTv1.Template {
     return {
       type: 'Template',
-      body: body || [],
-      blockParams: blockParams || [],
-      loc: this.loc(loc || null),
+      body: body ?? [],
+      blockParams: blockParams ?? [],
+      loc: toSourceSpan(loc, this.#template),
     };
   }
 
-  pos(line: number, column: number): SourcePosition {
-    return {
-      line,
-      column,
-    };
-  }
-
-  loc(loc: Option<SourceLocation>): SourceSpan;
   loc(
     startLine: number,
     startColumn: number,
@@ -512,30 +698,40 @@ export class PublicBuilders {
     endColumn?: number,
     source?: string
   ): SourceSpan;
-  loc(...args: any[]): SourceSpan {
-    if (args.length === 1) {
-      let loc = args[0];
-
-      if (loc && typeof loc === 'object') {
-        return SourceSpan.forHbsLoc(SOURCE(), loc);
+  loc(loc: ToSourceSpan | null): SourceSpan;
+  loc(
+    startLine: ToSourceSpan | null | number,
+    startColumn?: number,
+    endLine?: number,
+    endColumn?: number,
+    source?: string
+  ): ToSourceSpan {
+    const normalize = (): ToSourceSpan => {
+      if (typeof startLine === 'number') {
+        return {
+          start: {
+            line: startLine,
+            column: startColumn ?? 0,
+          },
+          end: {
+            line: endLine ?? startLine,
+            column: endColumn ?? startColumn ?? 0,
+          },
+          source,
+        };
       } else {
-        return SourceSpan.forHbsLoc(SOURCE(), SYNTHETIC_LOCATION);
+        return startLine ?? undefined;
       }
-    } else {
-      let [startLine, startColumn, endLine, endColumn, _source] = args;
-      let source = _source ? new Source(null, _source) : SOURCE();
+    };
 
-      return SourceSpan.forHbsLoc(source, {
-        start: {
-          line: startLine,
-          column: startColumn,
-        },
-        end: {
-          line: endLine,
-          column: endColumn,
-        },
-      });
-    }
+    return toSourceSpan(normalize(), this.#template);
+  }
+
+  pos(line: number, column: number): SourcePosition {
+    return {
+      line,
+      column,
+    };
   }
 }
 
@@ -548,6 +744,61 @@ function headToString(head: ASTv1.PathHead): { original: string; parts: string[]
     case 'VarHead':
       return { original: head.name, parts: [head.name] };
   }
+}
+
+function buildPath(
+  path: string,
+  loc: ToSourceSpan,
+  scope: Scope,
+  template: SourceTemplate
+): ASTv1.PathExpression {
+  let { head, tail, span } = processHead(path, scope, loc, template);
+
+  assert(
+    tail.length === 0,
+    `builder.path({ head, tail }) should not be called with a head with dots in it`
+  );
+
+  let { original: originalHead } = headToString(head);
+
+  return new PathExpressionImplV1([originalHead, ...tail].join('.'), head, tail, span, scope);
+}
+
+function processHead(
+  original: string,
+  scope: Scope,
+  loc: ToSourceSpan,
+  template: SourceTemplate
+): { head: ASTv1.PathHead; tail: string[]; span: SourceSpan } {
+  const [head, ...tail] = original.split('.');
+  const span = toSourceSpan(loc, template);
+  let headNode: ASTv1.PathHead;
+
+  if (head === 'this') {
+    headNode = {
+      type: 'ThisHead',
+      loc: span.sliceStartChars({ chars: 'this'.length }),
+    };
+  } else if (head[0] === '@') {
+    headNode = {
+      type: 'AtHead',
+      name: head,
+      loc: span.sliceStartChars({ chars: head.length }),
+    };
+  } else {
+    headNode = {
+      type: 'VarHead',
+      name: head,
+      declared: scope.declaration(head),
+      loc: span.sliceStartChars({ chars: head.length }),
+    };
+  }
+
+  return {
+    head: headNode,
+    tail,
+    span,
+  };
 }
 
 type LiteralNode<T extends ASTv1.Literal['type']> = Extract<

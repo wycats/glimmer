@@ -34,7 +34,7 @@ import { Assert } from './vm';
 import { DynamicAttribute } from '../../vm/attributes/dynamic';
 import { CheckReference, CheckArguments, CheckOperations } from './-debug-strip';
 import { CONSTANTS } from '../../symbols';
-import { assign, debugToString, expect, isObject } from '@glimmer/util';
+import { assign, debugToString, existing, isObject } from '@glimmer/util';
 import { CurriedValue, isCurriedType, resolveCurriedValue } from '../../curried-value';
 import { DEBUG } from '@glimmer/env';
 import { associateDestroyableChild, destroy } from '@glimmer/destroyable';
@@ -124,7 +124,7 @@ APPEND_OPCODES.add(Op.Modifier, (vm, { op1: handle }) => {
 
   let state = manager.create(
     owner,
-    expect(constructing, 'BUG: ElementModifier could not find the element it applies to'),
+    existing(constructing, 'BUG: ElementModifier could not find the element it applies to'),
     definition.state,
     args.capture()
   );
@@ -135,7 +135,7 @@ APPEND_OPCODES.add(Op.Modifier, (vm, { op1: handle }) => {
     definition,
   };
 
-  let operations = expect(
+  let operations = existing(
     check(vm.fetchValue($t0), CheckOperations),
     'BUG: ElementModifier could not find operations to append to'
   );
@@ -207,14 +207,14 @@ APPEND_OPCODES.add(Op.DynamicModifier, (vm) => {
     }
 
     let definition = constants.getValue<ModifierDefinition>(
-      expect(handle, 'BUG: modifier handle expected')
+      existing(handle, 'BUG: modifier handle expected')
     );
 
     let { manager } = definition;
 
     let state = manager.create(
       owner,
-      expect(constructing, 'BUG: ElementModifier could not find the element it applies to'),
+      existing(constructing, 'BUG: ElementModifier could not find the element it applies to'),
       definition.state,
       args
     );
@@ -230,7 +230,7 @@ APPEND_OPCODES.add(Op.DynamicModifier, (vm) => {
   let tag = null;
 
   if (instance !== undefined) {
-    let operations = expect(
+    let operations = existing(
       check(vm.fetchValue($t0), CheckOperations),
       'BUG: ElementModifier could not find operations to append to'
     );

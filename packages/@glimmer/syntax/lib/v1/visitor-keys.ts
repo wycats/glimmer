@@ -37,7 +37,7 @@ const visitorKeys = {
   NamedBlock: tuple('attributes', 'modifiers', 'children', 'comments'),
   SimpleElement: tuple('attributes', 'modifiers', 'children', 'comments'),
   Component: tuple('head', 'attributes', 'modifiers', 'children', 'comments'),
-};
+} as const;
 
 type VisitorKeysMap = typeof visitorKeys;
 

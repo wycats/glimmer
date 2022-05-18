@@ -33,8 +33,8 @@ export function registerTemplateOnlyComponent(
   registerSomeComponent(
     registry,
     name,
-    createTemplate(layoutSource),
-    templateOnlyComponent(undefined, name)
+    createTemplate(layoutSource, { meta: { moduleName: name } }),
+    templateOnlyComponent(name, name)
   );
 }
 
@@ -49,7 +49,7 @@ export function registerEmberishCurlyComponent(
   registerSomeComponent(
     registry,
     name,
-    layoutSource !== null ? createTemplate(layoutSource) : null,
+    layoutSource !== null ? createTemplate(layoutSource, { meta: { moduleName: name } }) : null,
     ComponentClass
   );
 }
@@ -65,7 +65,12 @@ export function registerGlimmerishComponent(
   }
   let ComponentClass = Component || class extends GlimmerishComponent {};
 
-  registerSomeComponent(registry, name, createTemplate(layoutSource), ComponentClass);
+  registerSomeComponent(
+    registry,
+    name,
+    createTemplate(layoutSource, { meta: { moduleName: name } }),
+    ComponentClass
+  );
 }
 
 export function registerHelper(registry: TestJitRegistry, name: string, helper: UserHelper) {
@@ -125,7 +130,7 @@ export function registerComponent<K extends ComponentKind>(
       registerEmberishCurlyComponent(
         registry,
         name,
-        (Class as any) as typeof EmberishCurlyComponent,
+        Class as any as typeof EmberishCurlyComponent,
         layout
       );
       break;

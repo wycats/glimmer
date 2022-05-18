@@ -1,5 +1,6 @@
 // eslint-disable-next-line import/no-extraneous-dependencies
 import type { PresentArray } from '@glimmer/interfaces';
+import { existing } from '@glimmer/util';
 
 import { LocatedWithOptionalSpan, LocatedWithSpan } from './location';
 import { SourceOffset, SourceSpan } from './span';
@@ -12,8 +13,12 @@ export type ToSourceOffset = number | SourceOffset;
 export class SpanList {
   static range(span: PresentArray<HasSourceSpan>): SourceSpan;
   static range(span: HasSourceSpan[], fallback: SourceSpan): SourceSpan;
-  static range(span: HasSourceSpan[], fallback: SourceSpan = SourceSpan.NON_EXISTENT): SourceSpan {
-    return new SpanList(span.map(loc)).getRangeOffset(fallback);
+  static range(span: HasSourceSpan[], fallback?: SourceSpan): SourceSpan {
+    if (span.length === 0) {
+      return new SpanList([]).#getRangeOffset(fallback);
+    } else {
+    }
+    return new SpanList(span.map(loc)).#getRangeOffset(fallback);
   }
 
   _span: SourceSpan[];
@@ -26,16 +31,16 @@ export class SpanList {
     this._span.push(offset);
   }
 
-  getRangeOffset(fallback: SourceSpan): SourceSpan {
+  #getRangeOffset = (fallback?: SourceSpan): SourceSpan => {
     if (this._span.length === 0) {
-      return fallback;
+      return existing(fallback, { variable: 'fallback' });
     } else {
       let first = this._span[0];
       let last = this._span[this._span.length - 1];
 
       return first.extend(last);
     }
-  }
+  };
 }
 
 export type HasSourceSpan = { loc: SourceSpan } | SourceSpan | [HasSourceSpan, ...HasSourceSpan[]];

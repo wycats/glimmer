@@ -199,7 +199,7 @@ if (DEBUG) {
     // occurred.
     try {
       assert(false, makeTrackingErrorMessage(transaction, obj, keyName));
-    } catch (e) {
+    } catch (e: any) {
       if (e.stack) {
         let updateStackBegin = e.stack.indexOf('Stack trace for the update:');
 

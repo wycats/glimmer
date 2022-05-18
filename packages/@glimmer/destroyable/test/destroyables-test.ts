@@ -471,7 +471,7 @@ module('Destroyables', (hooks) => {
 
       try {
         assertDestroyablesDestroyed!();
-      } catch (error) {
+      } catch (error: any) {
         assert.deepEqual(error.destroyables, [obj1, obj2], 'destroyables property');
       }
     });

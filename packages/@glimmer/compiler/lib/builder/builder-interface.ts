@@ -1,5 +1,5 @@
 import { Dict, DictValue, Option, PresentArray } from '@glimmer/interfaces';
-import { assertNever, dict, expect, isPresent } from '@glimmer/util';
+import { assertNever, dict, existing, isPresent } from '@glimmer/util';
 
 export type BuilderParams = BuilderExpression[];
 export type BuilderHash = Option<Dict<BuilderExpression>>;
@@ -257,7 +257,7 @@ export function normalizeSugaryArrayStatement(
 
       return {
         kind: HeadKind.Element,
-        name: expect(extractElement(name), `BUG: expected ${name} to look like a tag name`),
+        name: existing(extractElement(name), `BUG: expected ${name} to look like a tag name`),
         attrs,
         block,
       };

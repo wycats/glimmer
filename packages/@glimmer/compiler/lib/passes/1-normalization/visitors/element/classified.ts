@@ -1,4 +1,4 @@
-import { ASTv2, maybeLoc, SourceSpan } from '@glimmer/syntax';
+import { ASTv2, maybeLoc, SourceSpan, SourceTemplate } from '@glimmer/syntax';
 
 import { OptionalList } from '../../../../shared/list';
 import { Ok, Result, ResultArray } from '../../../../shared/result';
@@ -25,6 +25,7 @@ export interface Classified {
 
 export class ClassifiedElement {
   readonly delegate: Classified;
+  readonly #template: SourceTemplate;
 
   constructor(
     readonly element: ASTv2.ElementNode,
@@ -32,6 +33,7 @@ export class ClassifiedElement {
     readonly state: NormalizationState
   ) {
     this.delegate = delegate;
+    this.#template = element.loc.getTemplate();
   }
 
   toStatement(): Result<mir.Statement> {
@@ -133,7 +135,7 @@ export class ClassifiedElement {
     return Result.all(args.toArray(), attrs.toArray()).mapOk(([args, attrs]) => ({
       attrs,
       args: new mir.NamedArguments({
-        loc: maybeLoc(args, SourceSpan.NON_EXISTENT),
+        loc: maybeLoc(args, SourceSpan.NON_EXISTENT(this.#template)),
         entries: OptionalList(args),
       }),
     }));
@@ -149,7 +151,7 @@ export class ClassifiedElement {
       let elementParams = [...attrs, ...modifiers];
 
       let params = new mir.ElementParameters({
-        loc: maybeLoc(elementParams, SourceSpan.NON_EXISTENT),
+        loc: maybeLoc(elementParams, SourceSpan.NON_EXISTENT(this.#template)),
         body: OptionalList(elementParams),
       });
 

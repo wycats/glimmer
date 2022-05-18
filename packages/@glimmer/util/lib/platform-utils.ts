@@ -18,14 +18,41 @@ export function keys<T>(obj: T): Array<keyof T> {
   return Object.keys(obj) as Array<keyof T>;
 }
 
-export function unwrap<T>(val: Maybe<T>): T {
+export function unwrapped<T>(val: Maybe<T>): T {
   if (val === null || val === undefined) throw new Error(`Expected value to be present`);
   return val as T;
 }
 
-export function expect<T>(val: Maybe<T>, message: string): T {
-  if (val === null || val === undefined) throw new Error(message);
+export function unwrap<T>(val: Maybe<T>): asserts val is T {
+  unwrapped(val);
+}
+
+type PresenceOptions = string | { variable: string } | { method: [string, ...string[]] };
+
+export function existing<T>(val: Maybe<T>, options: PresenceOptions): T {
+  if (val === null || val === undefined) throw Error(message(options));
   return val as T;
+}
+
+function message(options: PresenceOptions) {
+  if (typeof options === 'string') {
+    return options;
+  }
+
+  if ('variable' in options) {
+    return `Expected ${options.variable} to be present`;
+  } else if ('method' in options) {
+    return `Expected a call to ${options.method.join('.')}() to be present`;
+  } else {
+    exhausted(options);
+  }
+}
+
+export function exists<T>(
+  val: T | null | undefined | void,
+  options: PresenceOptions
+): asserts val is T {
+  existing(val, options);
 }
 
 export function unreachable(message = 'unreachable'): Error {

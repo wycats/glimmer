@@ -24,7 +24,7 @@ import {
   ResolutionTimeConstants,
 } from '@glimmer/interfaces';
 import { isMachineOp } from '@glimmer/vm';
-import { Stack, dict, expect, EMPTY_STRING_ARRAY, encodeHandle, assert } from '@glimmer/util';
+import { Stack, dict, existing, EMPTY_STRING_ARRAY, encodeHandle, assert } from '@glimmer/util';
 import {
   resolveComponent,
   resolveComponentOrHelper,
@@ -95,7 +95,7 @@ export function encodeOp(
 
       case HighLevelResolutionOpcode.ResolveLocal:
         let freeVar = op[1];
-        let name = expect(meta.upvars, 'BUG: attempted to resolve value but no upvars found')[
+        let name = existing(meta.upvars, 'BUG: attempted to resolve value but no upvars found')[
           freeVar
         ];
 
@@ -107,7 +107,7 @@ export function encodeOp(
 
       case HighLevelResolutionOpcode.ResolveTemplateLocal:
         let [, valueIndex, then] = op;
-        let value = expect(
+        let value = existing(
           meta.scopeValues,
           'BUG: Attempted to gect a template local, but template does not have any'
         )[valueIndex];
@@ -119,9 +119,10 @@ export function encodeOp(
       case HighLevelResolutionOpcode.ResolveFree:
         if (DEBUG) {
           let [, upvarIndex] = op;
-          let freeName = expect(meta.upvars, 'BUG: attempted to resolve value but no upvars found')[
-            upvarIndex
-          ];
+          let freeName = existing(
+            meta.upvars,
+            'BUG: attempted to resolve value but no upvars found'
+          )[upvarIndex];
 
           throw new Error(
             `Attempted to resolve a value in a strict mode template, but that value was not in scope: ${freeName}`
@@ -213,7 +214,7 @@ export class EncoderImpl implements Encoder {
             return encodeHandle(constants.value(compilableBlock(operand.value, this.meta)));
 
           case HighLevelOperand.StdLib:
-            return expect(
+            return existing(
               this.stdlib,
               'attempted to encode a stdlib operand, but the encoder did not have a stdlib. Are you currently building the stdlib?'
             )[operand.value];
@@ -230,7 +231,7 @@ export class EncoderImpl implements Encoder {
   }
 
   private get currentLabels(): Labels {
-    return expect(this.labelsStack.current, 'bug: not in a label stack');
+    return existing(this.labelsStack.current, 'bug: not in a label stack');
   }
 
   label(name: string) {
@@ -242,7 +243,7 @@ export class EncoderImpl implements Encoder {
   }
 
   stopLabels() {
-    let label = expect(this.labelsStack.pop(), 'unbalanced push and pop labels');
+    let label = existing(this.labelsStack.pop(), 'unbalanced push and pop labels');
     label.patch(this.heap);
   }
 }

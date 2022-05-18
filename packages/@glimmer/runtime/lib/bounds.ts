@@ -1,6 +1,6 @@
 import { Bounds, Cursor, Option } from '@glimmer/interfaces';
 import { SimpleElement, SimpleNode } from '@simple-dom/interface';
-import { expect } from '@glimmer/util';
+import { existing } from '@glimmer/util';
 
 export class CursorImpl implements Cursor {
   constructor(public element: SimpleElement, public nextSibling: Option<SimpleNode>) {}
@@ -60,7 +60,7 @@ export function move(bounds: Bounds, reference: Option<SimpleNode>): Option<Simp
       return next;
     }
 
-    current = expect(next, 'invalid bounds');
+    current = existing(next, 'invalid bounds');
   }
 }
 
@@ -80,6 +80,6 @@ export function clear(bounds: Bounds): Option<SimpleNode> {
       return next;
     }
 
-    current = expect(next, 'invalid bounds');
+    current = existing(next, 'invalid bounds');
   }
 }

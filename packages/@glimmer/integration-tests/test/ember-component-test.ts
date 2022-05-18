@@ -1,4 +1,4 @@
-import { assign, dict, unwrap } from '@glimmer/util';
+import { assign, dict, unwrapped } from '@glimmer/util';
 import { SimpleElement } from '@simple-dom/interface';
 import { assert } from './support';
 import {
@@ -36,7 +36,7 @@ interface HookedComponent {
 }
 
 function inspectHooks<T extends EmberishCurlyComponentFactory>(ComponentClass: T): T {
-  return (class extends (ComponentClass as any) {
+  return class extends (ComponentClass as any) {
     constructor() {
       super();
 
@@ -97,7 +97,7 @@ function inspectHooks<T extends EmberishCurlyComponentFactory>(ComponentClass: T
       super.didRender(...arguments);
       this.hooks['didRender']++;
     }
-  } as any) as T;
+  } as any as T;
 }
 
 function assertFired(component: HookedComponent, name: string, count = 1) {
@@ -1277,7 +1277,7 @@ class CurlyIdsTest extends CurlyTest {
     let IDs = dict<number>();
 
     function markAsSeen(element: SimpleElement) {
-      let id = unwrap(elementId(element));
+      let id = unwrapped(elementId(element));
       IDs[id] = (IDs[id] || 0) + 1;
     }
 
@@ -1388,7 +1388,7 @@ class CurlyGlimmerComponentTest extends CurlyTest {
       'Curly',
       'non-block',
       'In layout - someProp: {{@someProp}}',
-      inspectHooks((NonBlock as unknown) as EmberishCurlyComponentFactory)
+      inspectHooks(NonBlock as unknown as EmberishCurlyComponentFactory)
     );
 
     this.render('{{non-block someProp=this.someProp}}', { someProp: 'wycats' });

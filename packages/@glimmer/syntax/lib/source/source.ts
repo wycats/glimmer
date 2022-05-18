@@ -19,28 +19,36 @@ import * as HBS from '../v1/handlebars-ast';
 import { SourceLocation, SourcePosition } from './location';
 import { SourceOffset, SourceSpan } from './span';
 
-export class Source {
-  static from(source: PreprocessInput, options?: PreprocessOptions): Source {
-    return Source.fromNormalized(source, options && normalize(options));
+export class SourceTemplate {
+  static from(
+    source: PreprocessInput,
+    module: string,
+    options: PreprocessOptions = {}
+  ): SourceTemplate {
+    return SourceTemplate.fromNormalized(source, options && normalize(module, options));
+  }
+
+  static nonexistent(module: string): SourceTemplate {
+    return SourceTemplate.from('', module, {});
   }
 
   static fromNormalized(
     source: PreprocessInput,
-    options: NormalizedPreprocessOptions | undefined
-  ): Source {
-    if (source instanceof Source) {
+    options: NormalizedPreprocessOptions
+  ): SourceTemplate {
+    if (source instanceof SourceTemplate) {
       if (options) {
         // If we got a Source as well as new options, create a new source with
         // the original input string and the new options.
-        return new Source(source.source, null, options);
+        return new SourceTemplate(source.source, null, options);
       } else {
         // Otherwise, just return the original source.
         return source;
       }
     } else if (typeof source === 'string') {
-      return new Source(source, null, options);
+      return new SourceTemplate(source, null, options);
     } else {
-      return new Source(null, source, options);
+      return new SourceTemplate(null, source, options);
     }
   }
 
@@ -49,13 +57,13 @@ export class Source {
   constructor(
     readonly source: string | null,
     private ast: HBS.Program | null = null,
-    options?: NormalizedPreprocessOptions
+    options: NormalizedPreprocessOptions
   ) {
     this.options = options === undefined ? normalize(options) : options;
   }
 
   get module(): string {
-    return this.options.module;
+    return this.options.module.name;
   }
 
   get purpose(): 'codemod' | 'precompile' {
@@ -64,6 +72,14 @@ export class Source {
 
   get lines(): string[] | null {
     return this.source?.split('\n') ?? null;
+  }
+
+  withOptions(options: NormalizedPreprocessOptions): SourceTemplate {
+    return new SourceTemplate(this.source, this.ast, options);
+  }
+
+  sub(input: PreprocessInput, options: NormalizedPreprocessOptions = this.options): SourceTemplate {
+    return SourceTemplate.fromNormalized(input, options);
   }
 
   embedderHasBinding(name: string): boolean {
@@ -76,7 +92,7 @@ export class Source {
 
   private applyPlugins(template: ASTv1.Template): ASTv1.Template {
     const plugins = this.options.plugins.ast;
-    const env: ASTPluginEnvironment = { meta: this.options.meta, syntax: new Syntax(this.options) };
+    const env: ASTPluginEnvironment = { meta: this.options.meta, syntax: new Syntax(this) };
 
     if (plugins) {
       for (const transform of plugins) {

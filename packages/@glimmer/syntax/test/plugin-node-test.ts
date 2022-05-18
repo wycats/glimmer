@@ -1,5 +1,5 @@
 import { preprocess, Syntax, Walker, AST, ASTPluginEnvironment, ASTPluginBuilder } from '..';
-import { expect } from '@glimmer/util';
+import { existing } from '@glimmer/util';
 
 const { test } = QUnit;
 
@@ -142,7 +142,7 @@ test('AST plugins can access meta from environment', (assert) => {
       visitor: {
         Program() {
           const { meta } = env;
-          const { moduleName } = expect(
+          const { moduleName } = existing(
             meta as { moduleName: 'string' },
             'expected meta to not be null'
           );

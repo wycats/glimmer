@@ -1,4 +1,4 @@
-import { SYNTAX_ERRORS, SyntaxErrorName, VoidSyntaxErrorName } from './errors';
+import { SYNTAX_ERRORS, VoidSyntaxErrorName } from './errors';
 import { SourceSpan } from './source/span';
 
 export type SymbolicSyntaxError =
@@ -30,6 +30,7 @@ export function generateSyntaxError(message: string, location: SourceSpan): Glim
 
 export function symbolicMessage(error: SymbolicSyntaxError | string): string {
   if (Array.isArray(error)) {
+    // @ts-expect-error FIXME
     return SYNTAX_ERRORS[error[0]](error[1]);
   } else if (error in SYNTAX_ERRORS) {
     return SYNTAX_ERRORS[error as VoidSyntaxErrorName];

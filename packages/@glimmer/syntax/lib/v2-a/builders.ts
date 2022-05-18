@@ -2,6 +2,7 @@ import type { PresentArray } from '@glimmer/interfaces';
 import { assert, assertPresent, assign } from '@glimmer/util';
 
 import { SourceSlice } from '../source/slice';
+import { SourceTemplate } from '../source/source';
 import { SourceSpan } from '../source/span';
 import { SpanList } from '../source/span-list';
 import { BlockSymbolTable, ProgramSymbolTable, SymbolTable } from '../symbol-table';
@@ -56,6 +57,7 @@ export class Phase2Builder {
       componentArgs: [],
       modifiers: [],
       comments: [],
+      template: loc.getTemplate(),
     }).named(name, block, loc);
   }
 
@@ -309,11 +311,13 @@ export class Phase2Builder {
   ): ASTv2.InvokeBlock {
     let blocksLoc = program.loc;
     let blocks: PresentArray<ASTv2.NamedBlock> = [
-      this.namedBlock(SourceSlice.synthetic('default'), program, program.loc),
+      this.namedBlock(SourceSlice.synthetic(loc.getTemplate(), 'default'), program, program.loc),
     ];
     if (inverse) {
       blocksLoc = blocksLoc.extend(inverse.loc);
-      blocks.push(this.namedBlock(SourceSlice.synthetic('else'), inverse, inverse.loc));
+      blocks.push(
+        this.namedBlock(SourceSlice.synthetic(loc.getTemplate(), 'else'), inverse, inverse.loc)
+      );
     }
 
     return new ASTv2.InvokeBlock({
@@ -335,12 +339,16 @@ export interface BuildBaseElement {
   componentArgs: ASTv2.ComponentArg[];
   modifiers: ASTv2.ElementModifier[];
   comments: ASTv2.GlimmerComment[];
+  template: SourceTemplate;
 }
 
 export class BuildElement {
   readonly builder: Phase2Builder;
+  readonly #template: SourceTemplate;
+
   constructor(readonly base: BuildBaseElement) {
     this.builder = new Phase2Builder();
+    this.#template = base.template;
   }
 
   simple(tag: SourceSlice, body: ASTv2.ContentNode[], loc: SourceSpan): ASTv2.SimpleElement {
@@ -395,7 +403,11 @@ export class BuildElement {
     loc: SourceSpan
   ): ASTv2.InvokeComponent {
     let block = this.builder.block(symbols, children, loc);
-    let namedBlock = this.builder.namedBlock(SourceSlice.synthetic('default'), block, loc); // BUILDER.simpleNamedBlock('default', children, symbols, loc);
+    let namedBlock = this.builder.namedBlock(
+      SourceSlice.synthetic(this.#template, 'default'),
+      block,
+      loc
+    ); // BUILDER.simpleNamedBlock('default', children, symbols, loc);
 
     return new ASTv2.InvokeComponent(
       assign(

@@ -1,8 +1,10 @@
-import { preprocess as parse, builders as b, ASTv1 } from '..';
+import { preprocess as parse, ASTv1, Buildersv1 } from '..';
 import { Dict } from '@glimmer/interfaces';
 
 import { astEqual } from './support';
 import { syntaxErrorFor } from '../../integration-tests';
+
+const b = Buildersv1.forModule('', 'test-module');
 
 const test = QUnit.test;
 

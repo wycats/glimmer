@@ -10,7 +10,7 @@ import {
   SourcePosition,
 } from '../location';
 import { SourceSlice } from '../slice';
-import { Source } from '../source';
+import { SourceTemplate } from '../source';
 import { format, FormatSpan } from './format';
 import { IsInvisible, match, MatchAny, MatchFn } from './match';
 import {
@@ -35,9 +35,9 @@ interface SpanData {
   asString(): string;
 
   /**
-   * The original `Source` containing this span, if available.
+   * The original `Source` containing this span. It may be a `Source.nonexistent()`.
    */
-  getSource(): Source | null;
+  getTemplate(): SourceTemplate;
 
   /**
    * Gets the module the span was located in.
@@ -110,45 +110,50 @@ interface SpanData {
  * The goal is to avoid creating any problems for use-cases like AST Explorer.
  */
 export class SourceSpan implements SourceLocation {
-  static get NON_EXISTENT(): SourceSpan {
-    return new InvisibleSpan(OffsetKind.NonExistent, NON_EXISTENT_LOCATION).wrap();
+  static NON_EXISTENT(template: SourceTemplate): SourceSpan {
+    return new InvisibleSpan(OffsetKind.NonExistent, NON_EXISTENT_LOCATION, template).wrap();
   }
 
-  static load(source: Source, serialized: SerializedSourceSpan): SourceSpan {
+  static load(source: SourceTemplate, serialized: SerializedSourceSpan): SourceSpan {
     if (typeof serialized === 'number') {
       return SourceSpan.forCharPositions(source, serialized, serialized);
     } else if (typeof serialized === 'string') {
-      return SourceSpan.synthetic(serialized);
+      return SourceSpan.synthetic(source, serialized);
     } else if (Array.isArray(serialized)) {
       return SourceSpan.forCharPositions(source, serialized[0], serialized[1]);
     } else if (serialized === OffsetKind.NonExistent) {
-      return SourceSpan.NON_EXISTENT;
+      return SourceSpan.NON_EXISTENT(source);
     } else if (serialized === OffsetKind.Broken) {
-      return SourceSpan.broken(BROKEN_LOCATION);
+      return SourceSpan.broken(source, BROKEN_LOCATION);
     }
 
     assertNever(serialized);
   }
 
-  static forHbsLoc(source: Source, loc: SourceLocation): SourceSpan {
+  static forHbsLoc(source: SourceTemplate, loc: SourceLocation): SourceSpan {
     let start = new HbsPosition(source, loc.start);
     let end = new HbsPosition(source, loc.end);
     return new HbsSpan(source, { start, end }, loc).wrap();
   }
 
-  static forCharPositions(source: Source, startPos: number, endPos: number): SourceSpan {
+  static forCharPositions(source: SourceTemplate, startPos: number, endPos: number): SourceSpan {
     let start = new CharPosition(source, startPos);
     let end = new CharPosition(source, endPos);
 
     return new CharPositionSpan(source, { start, end }).wrap();
   }
 
-  static synthetic(chars: string): SourceSpan {
-    return new InvisibleSpan(OffsetKind.InternalsSynthetic, NON_EXISTENT_LOCATION, chars).wrap();
+  static synthetic(template: SourceTemplate, chars: string): SourceSpan {
+    return new InvisibleSpan(
+      OffsetKind.InternalsSynthetic,
+      NON_EXISTENT_LOCATION,
+      template,
+      chars
+    ).wrap();
   }
 
-  static broken(pos: SourceLocation = BROKEN_LOCATION): SourceSpan {
-    return new InvisibleSpan(OffsetKind.Broken, pos).wrap();
+  static broken(template: SourceTemplate, pos: SourceLocation = BROKEN_LOCATION): SourceSpan {
+    return new InvisibleSpan(OffsetKind.Broken, pos, template).wrap();
   }
 
   readonly isInvisible: boolean;
@@ -164,6 +169,10 @@ export class SourceSpan implements SourceLocation {
 
   getEnd(): SourceOffset {
     return this.data.getEnd().wrap();
+  }
+
+  getTemplate(): SourceTemplate {
+    return this.data.getTemplate();
   }
 
   get loc(): SourceLocation {
@@ -215,7 +224,7 @@ export class SourceSpan implements SourceLocation {
   }
 
   asAnnotatedString(): string {
-    const source = this.data.getSource();
+    const source = this.data.getTemplate();
 
     if (source === null) {
       return format(this.asString());
@@ -355,7 +364,7 @@ class CharPositionSpan implements SpanData {
   _locPosSpan: HbsSpan | BROKEN | null = null;
 
   constructor(
-    readonly source: Source,
+    readonly source: SourceTemplate,
     readonly charPositions: { start: CharPosition; end: CharPosition }
   ) {}
 
@@ -363,7 +372,7 @@ class CharPositionSpan implements SpanData {
     return new SourceSpan(this);
   }
 
-  getSource(): Source | null {
+  getTemplate(): SourceTemplate {
     return this.source;
   }
 
@@ -439,14 +448,14 @@ export class HbsSpan implements SpanData {
   _providedHbsLoc: SourceLocation | null;
 
   constructor(
-    readonly source: Source,
+    readonly source: SourceTemplate,
     readonly hbsPositions: { start: HbsPosition; end: HbsPosition },
     providedHbsLoc: SourceLocation | null = null
   ) {
     this._providedHbsLoc = providedHbsLoc;
   }
 
-  getSource(): Source | null {
+  getTemplate(): SourceTemplate {
     return this.source;
   }
 
@@ -539,6 +548,7 @@ class InvisibleSpan implements SpanData {
     readonly kind: OffsetKind.Broken | OffsetKind.InternalsSynthetic | OffsetKind.NonExistent,
     // whatever was provided, possibly broken
     readonly loc: SourceLocation,
+    readonly template: SourceTemplate,
     // if the span represents a synthetic string
     readonly string: string | null = null
   ) {}
@@ -553,8 +563,8 @@ class InvisibleSpan implements SpanData {
     }
   }
 
-  getSource(): Source | null {
-    return null;
+  getTemplate(): SourceTemplate {
+    return this.template;
   }
 
   wrap(): SourceSpan {
@@ -576,16 +586,15 @@ class InvisibleSpan implements SpanData {
   }
 
   getModule(): string {
-    // TODO: Make this reflect the actual module this span originated from
-    return 'an unknown module';
+    return this.template.module;
   }
 
   getStart(): AnyPosition {
-    return new InvisiblePosition(this.kind, this.loc.start);
+    return new InvisiblePosition(this.kind, this.loc.start, this.template);
   }
 
   getEnd(): AnyPosition {
-    return new InvisiblePosition(this.kind, this.loc.end);
+    return new InvisiblePosition(this.kind, this.loc.end, this.template);
   }
 
   toCharPosSpan(): InvisibleSpan {
@@ -604,13 +613,13 @@ class InvisibleSpan implements SpanData {
 export const span: MatchFn<SourceSpan> = match((m) =>
   m
     .when(OffsetKind.HbsPosition, OffsetKind.HbsPosition, (left, right) =>
-      new HbsSpan(left.source, {
+      new HbsSpan(left.template, {
         start: left,
         end: right,
       }).wrap()
     )
     .when(OffsetKind.CharPosition, OffsetKind.CharPosition, (left, right) =>
-      new CharPositionSpan(left.source, {
+      new CharPositionSpan(left.template, {
         start: left,
         end: right,
       }).wrap()
@@ -619,7 +628,7 @@ export const span: MatchFn<SourceSpan> = match((m) =>
       let rightCharPos = right.toCharPos();
 
       if (rightCharPos === null) {
-        return new InvisibleSpan(OffsetKind.Broken, BROKEN_LOCATION).wrap();
+        return new InvisibleSpan(OffsetKind.Broken, BROKEN_LOCATION, left.template).wrap();
       } else {
         return span(left, rightCharPos);
       }
@@ -628,14 +637,16 @@ export const span: MatchFn<SourceSpan> = match((m) =>
       let leftCharPos = left.toCharPos();
 
       if (leftCharPos === null) {
-        return new InvisibleSpan(OffsetKind.Broken, BROKEN_LOCATION).wrap();
+        return new InvisibleSpan(OffsetKind.Broken, BROKEN_LOCATION, left.template).wrap();
       } else {
         return span(leftCharPos, right);
       }
     })
-    .when(IsInvisible, MatchAny, (left) => new InvisibleSpan(left.kind, BROKEN_LOCATION).wrap())
+    .when(IsInvisible, MatchAny, (left) =>
+      new InvisibleSpan(left.kind, BROKEN_LOCATION, left.template).wrap()
+    )
     .when(MatchAny, IsInvisible, (_, right) =>
-      new InvisibleSpan(right.kind, BROKEN_LOCATION).wrap()
+      new InvisibleSpan(right.kind, BROKEN_LOCATION, right.template).wrap()
     )
 );
 

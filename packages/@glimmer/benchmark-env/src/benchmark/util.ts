@@ -15,7 +15,7 @@ export async function measureRender(
   const endObserved = new Promise((resolve) => {
     new PerformanceObserver((entries, observer) => {
       if (entries.getEntriesByName(endMark, 'mark').length > 0) {
-        resolve();
+        resolve(undefined);
         observer.disconnect();
       }
     }).observe({ type: 'mark' });

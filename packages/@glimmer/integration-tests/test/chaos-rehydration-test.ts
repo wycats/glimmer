@@ -1,5 +1,5 @@
 import { Dict, Option } from '@glimmer/interfaces';
-import { castToBrowser, castToSimple, expect, LOCAL_LOGGER } from '@glimmer/util';
+import { castToBrowser, castToSimple, existing, LOCAL_LOGGER } from '@glimmer/util';
 import { NodeType, SimpleElement } from '@simple-dom/interface';
 import {
   blockStack,
@@ -146,7 +146,7 @@ abstract class AbstractChaosMonkeyTest extends RenderTest {
             expectedHTML,
             `should match after iteration ${i}; rerun with these query params: '${rerunUrl}'`
           );
-        } catch (error) {
+        } catch (error: any) {
           this.assert.pushResult({
             result: false,
             actual: error.message,
@@ -190,7 +190,7 @@ class ChaosMonkeyRehydration extends AbstractChaosMonkeyTest {
   }
 
   assertExactServerOutput(_expected: string) {
-    let output = expect(
+    let output = existing(
       this.serverOutput,
       'must renderServerSide before calling assertServerOutput'
     );

@@ -4,7 +4,7 @@ import {
   TemplateJavascript,
 } from '@glimmer/interfaces';
 import { LOCAL_SHOULD_LOG } from '@glimmer/local-debug-flags';
-import { normalize, PrecompileOptions, Source, TemplateIdFn } from '@glimmer/syntax';
+import { normalize, PrecompileOptions, SourceTemplate, TemplateIdFn } from '@glimmer/syntax';
 import { LOCAL_LOGGER } from '@glimmer/util';
 
 import pass0 from './passes/1-normalization/index';
@@ -68,7 +68,11 @@ export function precompileJSON(
   content: string,
   options: PrecompileOptions = defaultOptions
 ): [block: SerializedTemplateBlock, usedLocals: string[]] {
-  const source = Source.from(content, options);
+  const source = SourceTemplate.from(
+    content,
+    options?.meta?.moduleName ?? 'an !unknown! module',
+    options
+  );
   let [ast, locals] = normalize(source);
   let block = pass0(source, ast, options.strictMode ?? false).mapOk((pass2In) => {
     return pass2(pass2In);

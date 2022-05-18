@@ -131,5 +131,9 @@ function formatMarker(columns: { start: number; end: number }, length: number): 
   const size = columns.end - columns.start;
   const after = length - size - columns.start;
 
-  return `${' '.repeat(columns.start)}${'~'.repeat(size)}${' '.repeat(after)}`;
+  if (size === 0) {
+    return `${' '.repeat(columns.start)}^${' '.repeat(after - 1)}`;
+  } else {
+    return `${' '.repeat(columns.start)}${'~'.repeat(size)}${' '.repeat(after)}`;
+  }
 }

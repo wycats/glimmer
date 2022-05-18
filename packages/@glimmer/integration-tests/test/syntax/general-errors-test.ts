@@ -5,23 +5,17 @@ class SyntaxErrors extends RenderTest {
 
   @test
   'context switching using ../ is not allowed'() {
-    this.assert.throws(() => {
-      preprocess('<div><p>{{../value}}</p></div>', { meta: { moduleName: 'test-module' } });
-    }, syntaxErrorFor('Changing context using "../" is not supported in Glimmer', '../value', 'test-module', 1, 10));
+    this.syntaxError(`<div><p>{{~#../value#~}}</p></div>`, `hbs.syntax.invalid-dotdot`);
   }
 
   @test
   'mixing . and / is not allowed'() {
-    this.assert.throws(() => {
-      preprocess('<div><p>{{a/b.c}}</p></div>', { meta: { moduleName: 'test-module' } });
-    }, syntaxErrorFor("Mixing '.' and '/' in paths is not supported in Glimmer; use only '.' to separate property paths", 'a/b.c', 'test-module', 1, 10));
+    this.syntaxError(`<div><p>{{~#a/b.c#~}}</p></div>`, 'hbs.syntax.invalid-slash');
   }
 
   @test
   'explicit self ref with ./ is not allowed'() {
-    this.assert.throws(() => {
-      preprocess('<div><p>{{./value}}</p></div>', { meta: { moduleName: 'test-module' } });
-    }, syntaxErrorFor('Using "./" is not supported in Glimmer and unnecessary', './value', 'test-module', 1, 10));
+    this.syntaxError(`<div><p>{{~#./value#~}}</p></div>`, 'hbs.syntax.invalid-dotslash');
   }
 
   @test
@@ -44,7 +38,7 @@ class SyntaxErrors extends RenderTest {
   @test
   'Block params in HTML syntax - Throws an error on invalid identifiers for params'() {
     this.syntaxError(`<x-bar as |x ~#foo.bar#~|></x-bar>`, ['block-params.invalid-id', 'foo.bar']);
-    this.syntaxError(`<x-bar as |x ~#"#~foo"|></x-bar>`, ['block-params.invalid-id', '"']);
+    this.syntaxError(`<x-bar as |x ~#"foo"#~|></x-bar>`, ['block-params.invalid-id', '"']);
     this.syntaxError(`<x-bar as |x ~#foo[bar]#~|></x-bar>`, ['block-params.invalid-id', '"']);
   }
 

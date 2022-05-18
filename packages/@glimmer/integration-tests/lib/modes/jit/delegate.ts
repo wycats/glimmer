@@ -31,7 +31,7 @@ import {
   runtimeContext,
 } from '@glimmer/runtime';
 import { ASTPluginBuilder } from '@glimmer/syntax';
-import { assign, castToBrowser, castToSimple, expect, unwrapTemplate } from '@glimmer/util';
+import { assign, castToBrowser, castToSimple, existing, unwrapTemplate } from '@glimmer/util';
 import {
   ElementNamespace,
   SimpleDocument,
@@ -106,7 +106,7 @@ export class JitRenderDelegate implements RenderDelegate {
   }
 
   getCapturedRenderTree(): CapturedRenderNode[] {
-    return expect(
+    return existing(
       this.context.runtime.env.debugRenderTree,
       'Attempted to capture the DebugRenderTree during tests, but it was not created. Did you enable it in the environment?'
     ).capture();

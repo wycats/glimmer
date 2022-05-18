@@ -44,7 +44,7 @@ import {
   debugToString,
   dict,
   EMPTY_STRING_ARRAY,
-  expect,
+  existing,
   unwrapTemplate,
 } from '@glimmer/util';
 import { $t0, $t1 } from '@glimmer/vm';
@@ -152,7 +152,7 @@ APPEND_OPCODES.add(Op.ResolveDynamicComponent, (vm, { op1: _isStrict }) => {
 
     let resolvedDefinition = resolveComponent(vm.runtime.resolver, constants, component, owner);
 
-    definition = expect(resolvedDefinition, `Could not find a component named "${component}"`);
+    definition = existing(resolvedDefinition, `Could not find a component named "${component}"`);
   } else if (isCurriedValue(component)) {
     definition = component;
   } else {
@@ -269,7 +269,7 @@ APPEND_OPCODES.add(Op.PrepareArgs, (vm, { op1: _state }) => {
       let resolvedValue = vm.runtime.resolver.lookupComponent(resolvedDefinition, owner);
 
       definition = constants.resolvedComponent(
-        expect(resolvedValue, 'BUG: expected resolved component'),
+        existing(resolvedValue, 'BUG: expected resolved component'),
         resolvedDefinition
       );
     } else {
@@ -567,7 +567,7 @@ APPEND_OPCODES.add(Op.DidCreateElement, (vm, { op1: _state }) => {
 
   (manager as WithElementHook<unknown>).didCreateElement(
     state,
-    expect(vm.elements().constructing, `Expected a constructing element in DidCreateOpcode`),
+    existing(vm.elements().constructing, `Expected a constructing element in DidCreateOpcode`),
     operations
   );
 });
@@ -665,10 +665,9 @@ APPEND_OPCODES.add(Op.GetComponentTagName, (vm, { op1: _state }) => {
   let { definition, state } = check(vm.fetchValue(_state), CheckComponentInstance);
   let { manager } = definition;
 
-  let tagName = (manager as Recast<
-    InternalComponentManager,
-    WithDynamicTagName<unknown>
-  >).getTagName(state);
+  let tagName = (
+    manager as Recast<InternalComponentManager, WithDynamicTagName<unknown>>
+  ).getTagName(state);
 
   // User provided value from JS, so we don't bother to encode
   vm.stack.push(tagName);
