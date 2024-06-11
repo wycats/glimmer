@@ -1,10 +1,425 @@
-import type { SimpleElement } from '@glimmer/interfaces';
+import type {
+  Bounds,
+  ElementBuilder,
+  SimpleElement,
+  SimpleNode,
+  SimpleText,
+} from '@glimmer/interfaces';
+import { Cursor, StrictRuntime } from '@glimmer/runtime';
 import { castToBrowser, checkNode, NS_SVG, strip, unwrap } from '@glimmer/util';
+import { consumeTag, createCache, createTag, dirtyTag, getValue } from '@glimmer/validator';
+
+import type { Scenario } from '../test-decorator';
+import type { EventRecorder } from '../test-helpers/module';
 
 import { assertNodeTagName } from '../dom/assertions';
-import { firstElementChild, getElementsByTagName } from '../dom/simple-utils';
+import { firstElementChild, getElementsByTagName, toHTML, toInnerHTML } from '../dom/simple-utils';
 import { RenderTest } from '../render-test';
-import { test } from '../test-decorator';
+import { scenario, test } from '../test-decorator';
+import { testSuite } from '../test-helpers/module';
+import { stripTight } from '../test-helpers/strings';
+
+@testSuite('Manual Initial Render Suite')
+export class ManualInitialRenderSuite {
+  @scenario
+  'text content'({ assert }: Scenario) {
+    const ctx = new TestContext(assert);
+    ctx.builder.appendText('content');
+    ctx.rendered('content');
+  }
+
+  @scenario
+  'HTML tags'({ assert }: Scenario) {
+    const ctx = new TestContext(assert);
+    ctx.builder.openElement('h1');
+    ctx.builder.flushElement(null);
+    ctx.builder.appendText('hello!');
+    ctx.builder.closeElement();
+    ctx.builder.openElement('div');
+    ctx.builder.flushElement(null);
+    ctx.builder.appendText('content');
+    ctx.builder.closeElement();
+    ctx.rendered('<h1>hello!</h1><div>content</div>');
+  }
+
+  @scenario
+  'HTML attributes'({ assert }: Scenario) {
+    const ctx = new TestContext(assert);
+    ctx.builder.openElement('div');
+    ctx.builder.setStaticAttribute('class', 'foo');
+    ctx.builder.setStaticAttribute('id', 'bar');
+    ctx.builder.flushElement(null);
+    ctx.builder.appendText('content');
+    ctx.builder.closeElement();
+    ctx.rendered('<div class="foo" id="bar">content</div>');
+  }
+
+  @scenario
+  'HTML checked attributes'({ assert }: Scenario) {
+    const ctx = new TestContext(assert);
+    ctx.builder.openElement('input');
+    ctx.builder.setStaticAttribute('checked', 'checked');
+    ctx.builder.flushElement();
+    ctx.builder.closeElement();
+    ctx.rendered('<input checked="checked">');
+  }
+
+  @scenario
+  'HTML selected options'({ assert }: Scenario) {
+    const ctx = new TestContext(assert);
+    ctx.builder.openElement('select');
+    ctx.builder.flushElement(null);
+    ctx.builder.openElement('option');
+    ctx.builder.flushElement();
+    ctx.builder.appendText('1');
+    ctx.builder.closeElement();
+    ctx.builder.openElement('option');
+    ctx.builder.setStaticAttribute('selected');
+    ctx.builder.flushElement();
+    ctx.builder.appendText('2');
+    ctx.builder.closeElement();
+    ctx.builder.openElement('option');
+    ctx.builder.flushElement();
+    ctx.builder.appendText('3');
+    ctx.builder.closeElement();
+    ctx.builder.closeElement();
+    ctx.rendered(stripTight`
+      <select>
+        <option>1</option>
+        <option selected>2</option>
+        <option>3</option>
+      </select>
+    `);
+  }
+
+  @scenario
+  'HTML multi-select options'({ assert }: Scenario) {
+    const ctx = new TestContext(assert);
+    ctx.builder.openElement('select');
+    ctx.builder.setStaticAttribute('multiple');
+    ctx.builder.flushElement();
+    ctx.builder.openElement('option');
+    ctx.builder.flushElement();
+    ctx.builder.appendText('1');
+    ctx.builder.closeElement();
+    ctx.builder.openElement('option');
+    ctx.builder.setStaticAttribute('selected');
+    ctx.builder.flushElement();
+    ctx.builder.appendText('2');
+    ctx.builder.closeElement();
+    ctx.builder.openElement('option');
+    ctx.builder.setStaticAttribute('selected');
+    ctx.builder.flushElement();
+    ctx.builder.appendText('3');
+    ctx.builder.closeElement();
+    ctx.builder.closeElement();
+
+    ctx.rendered(
+      stripTight`
+      <select multiple>
+        <option>1</option>
+        <option selected>2</option>
+        <option selected>3</option>
+      </select>
+      `
+    );
+  }
+
+  @scenario
+  'void elements'({ assert }: Scenario) {
+    const VOID_ELEMENTS = [
+      'area',
+      'base',
+      'br',
+      'embed',
+      'hr',
+      'img',
+      'input',
+      'keygen',
+      'link',
+      'meta',
+      'param',
+      'source',
+      'track',
+      'wbr',
+    ];
+
+    for (const tagName of VOID_ELEMENTS) {
+      const ctx = new TestContext(assert);
+      ctx.builder.openElement(tagName);
+      ctx.builder.flushElement();
+      ctx.builder.closeElement();
+      ctx.rendered('<' + tagName + '>');
+    }
+  }
+
+  @scenario
+  'Nested HTML'({ assert }: Scenario) {
+    const ctx = new TestContext(assert);
+    ctx.builder.openElement('div');
+    ctx.builder.setStaticAttribute('class', 'foo');
+    ctx.builder.flushElement();
+    ctx.builder.openElement('p');
+    ctx.builder.flushElement();
+    ctx.builder.openElement('span');
+    ctx.builder.setStaticAttribute('id', 'bar');
+    ctx.builder.setStaticAttribute('data-foo', 'bar');
+    ctx.builder.flushElement();
+    ctx.builder.appendText('hi!');
+    ctx.builder.closeElement();
+    ctx.builder.closeElement();
+    ctx.builder.closeElement();
+    ctx.builder.appendHTML('&nbsp;');
+    ctx.builder.appendText('More content');
+    ctx.rendered(
+      `<div class="foo"><p><span id="bar" data-foo="bar">hi!</span></p></div>\u00A0More content`
+    );
+  }
+
+  @scenario
+  'Custom Elements'({ assert }: Scenario) {
+    const ctx = new TestContext(assert);
+    ctx.builder.openElement('use-the-platform');
+    ctx.builder.flushElement();
+    ctx.builder.closeElement();
+    ctx.rendered('<use-the-platform></use-the-platform>');
+  }
+
+  @scenario
+  'Nested Custom Elements'({ assert }: Scenario) {
+    const ctx = new TestContext(assert);
+    ctx.builder.openElement('use-the-platform');
+    ctx.builder.flushElement();
+
+    ctx.builder.openElement('seriously-please');
+    ctx.builder.setStaticAttribute('data-foo', '1');
+    ctx.builder.flushElement();
+    ctx.builder.appendText('Stuff ');
+    ctx.builder.openElement('div');
+    ctx.builder.flushElement();
+    ctx.builder.appendText('Here');
+    ctx.builder.closeElement();
+    ctx.builder.closeElement();
+    ctx.builder.closeElement();
+    ctx.rendered(
+      stripTight`
+        <use-the-platform>
+          <seriously-please data-foo="1">
+            Stuff <div>Here</div>
+          </seriously-please>
+        </use-the-platform>
+      `
+    );
+  }
+
+  @scenario
+  'Moar nested Custom Elements'({ assert }: Scenario) {
+    const ctx = new TestContext(assert);
+    ctx.builder.openElement('use-the-platform');
+    ctx.builder.flushElement();
+
+    ctx.builder.openElement('seriously-please');
+    ctx.builder.setStaticAttribute('data-foo', '1');
+    ctx.builder.flushElement();
+    ctx.builder.openElement('wheres-the-platform');
+    ctx.builder.flushElement();
+    ctx.builder.appendText('Here');
+    ctx.builder.closeElement();
+    ctx.builder.closeElement();
+    ctx.builder.closeElement();
+    ctx.rendered(
+      stripTight`
+        <use-the-platform>
+          <seriously-please data-foo="1">
+            <wheres-the-platform>
+              Here
+            </wheres-the-platform>
+          </seriously-please>
+        </use-the-platform>
+      `
+    );
+  }
+
+  @scenario
+  'Text curlies'({ assert, events }: Scenario) {
+    const title = cell('hello');
+    const ctx = new TestContext(assert);
+
+    const render = (buffer: ElementBuilder) => {
+      buffer.openElement('div');
+      buffer.flushElement();
+
+      const titleNode = dynamicText(buffer, events, title);
+
+      buffer.closeElement();
+
+      const result = ctx.rendered(`<div>hello</div>`);
+
+      return {
+        ...result,
+        revalidate: () => {
+          getValue(titleNode);
+        },
+      };
+    };
+
+    const result = render(ctx.builder);
+
+    events.expect('initial text hello');
+    result.revalidate();
+    events.expect([]);
+
+    title.set('goodbye');
+    result.revalidate();
+    result.updated('<div>goodbye</div>');
+    events.expect('updated text goodbye');
+
+    result.revalidate();
+    events.expect([]);
+  }
+
+  // @test
+  // 'Text curlies'() {
+  //   this.render('<div>{{this.title}}<span>{{this.title}}</span></div>', { title: 'hello' });
+  //   this.assertHTML('<div>hello<span>hello</span></div>');
+  //   this.assertStableRerender();
+
+  //   this.rerender({ title: 'goodbye' });
+  //   this.assertHTML('<div>goodbye<span>goodbye</span></div>');
+  //   this.assertStableNodes();
+
+  //   this.rerender({ title: '' });
+  //   this.assertHTML('<div><span></span></div>');
+  //   this.assertStableNodes();
+
+  //   this.rerender({ title: 'hello' });
+  //   this.assertHTML('<div>hello<span>hello</span></div>');
+  //   this.assertStableNodes();
+  // }
+}
+
+function cell<T>(value: T) {
+  const tag = createTag();
+  return {
+    get: () => {
+      consumeTag(tag);
+      return value;
+    },
+    set: (update: T) => {
+      if (update === value) {
+        return;
+      }
+
+      value = update;
+      dirtyTag(tag);
+    },
+  };
+}
+
+interface Cell<T> {
+  get(): T;
+  set(update: T): void;
+}
+
+function dynamicText(builder: ElementBuilder, events: EventRecorder, text: Cell<string>) {
+  let last = undefined as
+    | undefined
+    | {
+        node: SimpleText;
+        value: string;
+      };
+
+  const cache = createCache(() => {
+    const next = text.get();
+
+    if (!last) {
+      last = {
+        node: builder.appendText(next),
+        value: next,
+      };
+      events.record(`initial text ${next}`);
+    } else if (next !== last.value) {
+      last.value = next;
+      last.node.nodeValue = next;
+      events.record(`updated text ${next}`);
+    }
+
+    return last.node;
+  });
+
+  getValue(cache);
+
+  return cache;
+}
+
+class TestContext {
+  readonly ctx: StrictRuntime;
+  readonly element: SimpleElement;
+  readonly builder: ElementBuilder;
+  readonly #assert: Assert;
+
+  constructor(assert: Assert) {
+    this.#assert = assert;
+    const ctx = (this.ctx = StrictRuntime.browser());
+    const element = (this.element = ctx.append.createElement('div'));
+    const builder = (this.builder = ctx.elements(Cursor({ parent: element }), {
+      for: 'initial-render',
+    }));
+
+    builder.pushSimpleBlock();
+  }
+
+  rendered(content: string) {
+    const block = this.builder.popBlock();
+
+    this.#assert.step(`Expected content: ${content}`);
+    this.#assert.strictEqual(
+      toInnerHTML(this.element),
+      content,
+      `The element has the expected content`
+    );
+    this.#assert.strictEqual(boundsToHTML(block), content, `The block has the expected content`);
+
+    this.#assert.verifySteps([`Expected content: ${content}`]);
+
+    // @todo assertStableRerender (it will be a noop in these static tests, but once it works, we
+    // need to verify that it's a noop)
+
+    return {
+      block,
+      updated: (expected: string) => {
+        this.#assert.step(`Expected content (updated): ${expected}`);
+        this.#assert.strictEqual(
+          toInnerHTML(this.element),
+          expected,
+          `The element has the expected content`
+        );
+        this.#assert.strictEqual(
+          boundsToHTML(block),
+          expected,
+          `The block has the expected content`
+        );
+
+        this.#assert.verifySteps([`Expected content (updated): ${expected}`]);
+      },
+    };
+  }
+}
+
+function boundsToHTML(bounds: Bounds) {
+  const first = bounds.firstNode();
+  const last = bounds.lastNode();
+
+  let out = '';
+  let current: SimpleNode | null = first;
+
+  while (current && current !== last.nextSibling) {
+    out += toHTML(current);
+    current = current.nextSibling;
+  }
+
+  return out;
+}
 
 export class InitialRenderSuite extends RenderTest {
   static suiteName = 'initial render';

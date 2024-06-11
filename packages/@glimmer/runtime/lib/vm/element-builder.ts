@@ -1,7 +1,7 @@
 import type {
   AttrNamespace,
   Bounds,
-  Cursor,
+  Cursor as ICursor,
   CursorStackSymbol,
   ElementBuilder,
   ElementOperations,
@@ -80,7 +80,7 @@ export class NewElementBuilder implements ElementBuilder {
   public operations: Nullable<ElementOperations> = null;
   private env: Environment;
 
-  [CURSOR_STACK] = new Stack<Cursor>();
+  [CURSOR_STACK] = new Stack<ICursor>();
   private modifierStack = new Stack<Nullable<ModifierInstance[]>>();
   private blockStack = new Stack<LiveBlock>();
 
@@ -182,7 +182,7 @@ export class NewElementBuilder implements ElementBuilder {
     return this.dom.createElement(tag, this.element);
   }
 
-  flushElement(modifiers: Nullable<ModifierInstance[]>) {
+  flushElement(modifiers: Nullable<ModifierInstance[]> = null) {
     let parent = this.element;
     let element = expect(
       this.constructing,
@@ -302,6 +302,10 @@ export class NewElementBuilder implements ElementBuilder {
     }
   }
 
+  appendHTML(html: string): Bounds {
+    return this.__appendHTML(html);
+  }
+
   __appendHTML(html: string): Bounds {
     return this.dom.insertHTMLBefore(this.element, this.nextSibling, html);
   }
@@ -355,7 +359,7 @@ export class NewElementBuilder implements ElementBuilder {
     (this.constructing! as any)[name] = value;
   }
 
-  setStaticAttribute(name: string, value: string, namespace: Nullable<AttrNamespace>): void {
+  setStaticAttribute(name: string, value = '', namespace: Nullable<AttrNamespace> = null): void {
     this.__setAttribute(name, value, namespace);
   }
 

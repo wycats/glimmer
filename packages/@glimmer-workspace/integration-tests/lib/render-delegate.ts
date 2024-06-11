@@ -1,5 +1,5 @@
 import type {
-  Cursor,
+  Cursor as ICursor,
   Dict,
   DynamicScope,
   ElementBuilder,
@@ -56,6 +56,6 @@ export default interface RenderDelegate {
     element: SimpleElement,
     dynamicScope?: DynamicScope
   ): RenderResult;
-  getElementBuilder(env: Environment, cursor: Cursor): ElementBuilder;
+  getElementBuilder(env: Environment, cursor: ICursor): ElementBuilder;
   getSelf(env: Environment, context: unknown): Reference;
 }

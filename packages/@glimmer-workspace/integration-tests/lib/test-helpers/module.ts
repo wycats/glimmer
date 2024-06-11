@@ -10,10 +10,15 @@ import type { DeclaredComponentKind } from '../test-decorator';
 import { JitRenderDelegate } from '../modes/jit/delegate';
 import { NodeJitRenderDelegate } from '../modes/node/env';
 import { JitSerializationDelegate } from '../suites/custom-dom-helper';
+import { getScenarios } from '../test-decorator';
 
 export interface RenderTestConstructor<D extends RenderDelegate, T extends IRenderTest> {
   suiteName: string;
   new (delegate: D): T;
+}
+
+export interface TestConstructor<T> {
+  new (): T;
 }
 
 export function jitSuite<T extends IRenderTest>(
@@ -60,6 +65,51 @@ export function componentSuite<D extends RenderDelegate>(
   Delegate: RenderDelegateConstructor<D>
 ): void {
   return suite(klass, Delegate, { componentModule: true });
+}
+
+export class EventRecorder {
+  #events: string[] = [];
+  #recorded = false;
+
+  record(event: string): void {
+    this.#events.push(event);
+    this.#recorded = true;
+  }
+
+  expect(...events: string[] | [[]]): void {
+    const actual = this.#events;
+    this.#events = [];
+
+    const [first] = events;
+
+    if (Array.isArray(first)) {
+      QUnit.assert.deepEqual(actual, first, `Expected no events`);
+    } else {
+      QUnit.assert.deepEqual(actual, events, `Expected events`);
+    }
+  }
+
+  done(): void {
+    if (this.#recorded) {
+      QUnit.assert.ok(this.#events.length === 0, `All recorded events were checked`);
+    }
+  }
+}
+
+export function testSuite(name: string) {
+  return function testSuite<T>(klass: TestConstructor<T>) {
+    QUnit.module(`[suite] ${name}`, () => {
+      const scenarios = getScenarios(klass);
+      for (const [name, scenario] of Object.entries(scenarios)) {
+        QUnit.test(name, async (assert) => {
+          const instance = new klass();
+          const events = new EventRecorder();
+          await scenario.call(instance, { assert, events });
+          events.done();
+        });
+      }
+    });
+  };
 }
 
 export function suite<D extends RenderDelegate>(

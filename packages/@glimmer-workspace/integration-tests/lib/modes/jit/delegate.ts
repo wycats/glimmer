@@ -1,7 +1,7 @@
 import type {
   CapturedRenderNode,
   CompileTimeCompilationContext,
-  Cursor,
+  Cursor as ICursor,
   Dict,
   DynamicScope,
   ElementBuilder,
@@ -27,6 +27,7 @@ import {
   array,
   clientBuilder,
   concat,
+  EnvironmentImpl,
   fn,
   get,
   hash,
@@ -75,6 +76,14 @@ export function JitDelegateContext(
   );
   let runtime = runtimeContext({ document: doc }, env, sharedArtifacts, resolver);
   return { runtime, program: context };
+}
+
+/**
+ * A context for the strict runtime. It doesn't take a resolver, since strict templates don't use
+ * the resolver.
+ */
+export function StrictRuntimeContext(doc: SimpleDocument, env: EnvironmentDelegate) {
+  return new EnvironmentImpl({ document: doc }, env);
 }
 
 export class JitRenderDelegate implements RenderDelegate {
@@ -190,7 +199,7 @@ export class JitRenderDelegate implements RenderDelegate {
     registerInternalHelper(this.registry, name, helper);
   }
 
-  getElementBuilder(env: Environment, cursor: Cursor): ElementBuilder {
+  getElementBuilder(env: Environment, cursor: ICursor): ElementBuilder {
     return clientBuilder(env, cursor);
   }
 

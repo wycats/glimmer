@@ -5,7 +5,7 @@ import './lib/bootstrap';
 
 import type { RichIteratorResult } from '@glimmer/interfaces';
 
-export { clear, ConcreteBounds, CursorImpl } from './lib/bounds';
+export { clear, ConcreteBounds, Cursor, CursorImpl } from './lib/bounds';
 export {
   type DebugCallback,
   resetDebuggerCallback,
@@ -40,6 +40,7 @@ export { invokeHelper } from './lib/helpers/invoke';
 export { on } from './lib/modifiers/on';
 export { renderComponent, renderMain, renderSync } from './lib/render';
 export { DynamicScopeImpl, PartialScopeImpl } from './lib/scope';
+export { StrictRuntime } from './lib/strict-ctx';
 export type { SafeString } from './lib/upsert';
 export { type InternalVM, VM as LowLevelVM, UpdatingVM } from './lib/vm';
 export {

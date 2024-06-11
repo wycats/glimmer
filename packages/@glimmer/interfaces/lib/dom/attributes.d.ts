@@ -1,7 +1,7 @@
 import type { Maybe, Nullable } from '../core.js';
 import type { ElementOperations, Environment, ModifierInstance } from '../runtime.js';
 import type { Stack } from '../stack.js';
-import type { Bounds, Cursor } from './bounds.js';
+import type { Bounds, Cursor as ICursor } from './bounds.js';
 import type { GlimmerTreeChanges, GlimmerTreeConstruction } from './changes.js';
 import type {
   AttrNamespace,
@@ -41,8 +41,9 @@ export interface DOMStack {
   popRemoteElement(): RemoteLiveBlock;
   popElement(): void;
   openElement(tag: string, _operations?: ElementOperations): SimpleElement;
-  flushElement(modifiers: Nullable<ModifierInstance[]>): void;
+  flushElement(modifiers?: Nullable<ModifierInstance[]>): void;
   appendText(string: string): SimpleText;
+  appendHTML(string: string): Bounds;
   appendComment(string: string): SimpleComment;
 
   appendDynamicHTML(value: string): void;
@@ -50,7 +51,7 @@ export interface DOMStack {
   appendDynamicFragment(value: SimpleDocumentFragment): void;
   appendDynamicNode(value: SimpleNode): void;
 
-  setStaticAttribute(name: string, value: string, namespace: Nullable<string>): void;
+  setStaticAttribute(name: string, value?: string, namespace?: Nullable<string>): void;
   setDynamicAttribute(
     name: string,
     value: unknown,
@@ -77,8 +78,8 @@ export interface TreeOperations {
 declare const CURSOR_STACK: unique symbol;
 export type CursorStackSymbol = typeof CURSOR_STACK;
 
-export interface ElementBuilder extends Cursor, DOMStack, TreeOperations {
-  [CURSOR_STACK]: Stack<Cursor>;
+export interface ElementBuilder extends ICursor, DOMStack, TreeOperations {
+  [CURSOR_STACK]: Stack<ICursor>;
 
   nextSibling: Nullable<SimpleNode>;
   dom: GlimmerTreeConstruction;

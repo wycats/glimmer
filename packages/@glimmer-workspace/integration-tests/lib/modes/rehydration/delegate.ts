@@ -1,5 +1,5 @@
 import type {
-  Cursor,
+  Cursor as ICursor,
   Dict,
   ElementBuilder,
   ElementNamespace,
@@ -102,7 +102,7 @@ export class RehydrationDelegate implements RenderDelegate {
     return this.clientDoc.createDocumentFragment();
   }
 
-  getElementBuilder(env: Environment, cursor: Cursor): ElementBuilder {
+  getElementBuilder(env: Environment, cursor: ICursor): ElementBuilder {
     if (cursor.element instanceof Node) {
       return debugRehydration(env, cursor);
     }

@@ -25,6 +25,11 @@ export function toOuterHTML(parent: SimpleElement | SimpleDocumentFragment): str
   return serializer.serialize(parent);
 }
 
+export function toHTML(node: SimpleNode): string {
+  const serializer = new Serializer(voidMap);
+  return serializer.serialize(node);
+}
+
 export interface CastToBrowserDom {
   [COMMENT_NODE]: { browser: Comment; simple: SimpleComment };
   [TEXT_NODE]: { browser: Text; simple: SimpleText };

@@ -1,11 +1,24 @@
-import type { Bounds, Cursor, Nullable, SimpleElement, SimpleNode } from '@glimmer/interfaces';
+import type {
+  Bounds,
+  Cursor as ICursor,
+  Nullable,
+  SimpleElement,
+  SimpleNode,
+} from '@glimmer/interfaces';
 import { expect } from '@glimmer/util';
 
-export class CursorImpl implements Cursor {
+export class CursorImpl implements ICursor {
   constructor(
     public element: SimpleElement,
     public nextSibling: Nullable<SimpleNode>
   ) {}
+}
+
+export function Cursor(options: {
+  parent: SimpleElement | Element;
+  before?: Nullable<SimpleNode | Node>;
+}): ICursor {
+  return new CursorImpl(options.parent as SimpleElement, options.before as Nullable<SimpleNode>);
 }
 
 export type DestroyableBounds = Bounds;
