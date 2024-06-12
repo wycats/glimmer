@@ -1,15 +1,16 @@
 import type {
   Cursor,
   ElementBuilder,
+  Environment,
   GlimmerTreeConstruction,
   SimpleDocument,
 } from '@glimmer/interfaces';
 import { castToSimple } from '@glimmer/util';
 
-import type { EnvironmentDelegate } from './environment';
+import type { EnvironmentDelegate } from '../environment';
 
-import EnvironmentImpl from './environment';
-import { NewElementBuilder } from './vm/element-builder';
+import EnvironmentImpl from '../environment';
+import { NewElementBuilder } from '../vm/element-builder';
 
 export class StrictRuntime {
   static browser(env?: Partial<EnvironmentDelegate>): StrictRuntime {
@@ -36,6 +37,10 @@ export class StrictRuntime {
     };
 
     this.#env = new EnvironmentImpl({ document: castToSimple(doc) }, env);
+  }
+
+  get env(): Environment {
+    return this.#env;
   }
 
   get append(): GlimmerTreeConstruction {

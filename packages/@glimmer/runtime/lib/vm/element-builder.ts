@@ -367,7 +367,7 @@ export class NewElementBuilder implements ElementBuilder {
     name: string,
     value: unknown,
     trusting: boolean,
-    namespace: Nullable<AttrNamespace>
+    namespace: Nullable<AttrNamespace> = null
   ): DynamicAttribute {
     let element = this.constructing!;
     let attribute = dynamicAttribute(element, name, namespace, trusting);

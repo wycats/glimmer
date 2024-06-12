@@ -40,7 +40,25 @@ export { invokeHelper } from './lib/helpers/invoke';
 export { on } from './lib/modifiers/on';
 export { renderComponent, renderMain, renderSync } from './lib/render';
 export { DynamicScopeImpl, PartialScopeImpl } from './lib/scope';
-export { StrictRuntime } from './lib/strict-ctx';
+export { DynamicTreeBuilder } from './lib/strict/dynamic-tree';
+export type {
+  DebugLog,
+  PollResult,
+  RenderNode,
+  RenderNodeInstance,
+  UpdateNode,
+} from './lib/strict/nodes';
+export {
+  AttributeNode,
+  DynamicAttributeNode,
+  DynamicHtmlNode,
+  DynamicTextNode,
+  ElementNode,
+  FragmentNode,
+  HtmlNode,
+  TextNode,
+} from './lib/strict/nodes';
+export { StrictRuntime } from './lib/strict/strict-ctx';
 export type { SafeString } from './lib/upsert';
 export { type InternalVM, VM as LowLevelVM, UpdatingVM } from './lib/vm';
 export {

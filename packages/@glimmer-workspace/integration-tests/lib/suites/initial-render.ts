@@ -1,16 +1,21 @@
-import type {
-  Bounds,
-  ElementBuilder,
-  SimpleElement,
-  SimpleNode,
-  SimpleText,
-} from '@glimmer/interfaces';
-import { Cursor, StrictRuntime } from '@glimmer/runtime';
+import type { Bounds, ElementBuilder, SimpleElement, SimpleNode } from '@glimmer/interfaces';
+import type { DebugLog, RenderNodeInstance } from '@glimmer/runtime';
+import {
+  AttributeNode,
+  Cursor,
+  DynamicAttributeNode,
+  DynamicTextNode,
+  DynamicTreeBuilder,
+  ElementNode,
+  FragmentNode,
+  HtmlNode,
+  StrictRuntime,
+  TextNode,
+} from '@glimmer/runtime';
 import { castToBrowser, checkNode, NS_SVG, strip, unwrap } from '@glimmer/util';
-import { consumeTag, createCache, createTag, dirtyTag, getValue } from '@glimmer/validator';
+import { consumeTag, createTag, dirtyTag } from '@glimmer/validator';
 
 import type { Scenario } from '../test-decorator';
-import type { EventRecorder } from '../test-helpers/module';
 
 import { assertNodeTagName } from '../dom/assertions';
 import { firstElementChild, getElementsByTagName, toHTML, toInnerHTML } from '../dom/simple-utils';
@@ -24,104 +29,126 @@ export class ManualInitialRenderSuite {
   @scenario
   'text content'({ assert }: Scenario) {
     const ctx = new TestContext(assert);
-    ctx.builder.appendText('content');
-    ctx.rendered('content');
+    ctx.append(TextNode('content'), { expect: 'content' });
   }
 
   @scenario
   'HTML tags'({ assert }: Scenario) {
     const ctx = new TestContext(assert);
-    ctx.builder.openElement('h1');
-    ctx.builder.flushElement(null);
-    ctx.builder.appendText('hello!');
-    ctx.builder.closeElement();
-    ctx.builder.openElement('div');
-    ctx.builder.flushElement(null);
-    ctx.builder.appendText('content');
-    ctx.builder.closeElement();
-    ctx.rendered('<h1>hello!</h1><div>content</div>');
+    ctx.append(
+      FragmentNode([
+        ElementNode({
+          tag: 'h1',
+          children: [TextNode('hello!')],
+        }),
+        ElementNode({
+          tag: 'div',
+          children: [TextNode('content')],
+        }),
+      ]),
+      { expect: '<h1>hello!</h1><div>content</div>' }
+    );
   }
 
   @scenario
   'HTML attributes'({ assert }: Scenario) {
     const ctx = new TestContext(assert);
-    ctx.builder.openElement('div');
-    ctx.builder.setStaticAttribute('class', 'foo');
-    ctx.builder.setStaticAttribute('id', 'bar');
-    ctx.builder.flushElement(null);
-    ctx.builder.appendText('content');
-    ctx.builder.closeElement();
-    ctx.rendered('<div class="foo" id="bar">content</div>');
+
+    ctx.append(
+      ElementNode({
+        tag: 'div',
+        attributes: [
+          AttributeNode({ name: 'class', value: 'foo' }),
+          AttributeNode({ name: 'id', value: 'bar' }),
+        ],
+        children: [TextNode('content')],
+      }),
+      { expect: '<div class="foo" id="bar">content</div>' }
+    );
   }
 
   @scenario
   'HTML checked attributes'({ assert }: Scenario) {
     const ctx = new TestContext(assert);
-    ctx.builder.openElement('input');
-    ctx.builder.setStaticAttribute('checked', 'checked');
-    ctx.builder.flushElement();
-    ctx.builder.closeElement();
-    ctx.rendered('<input checked="checked">');
+
+    ctx.append(
+      ElementNode({
+        tag: 'input',
+        attributes: [AttributeNode({ name: 'checked', value: 'checked' })],
+      }),
+      { expect: '<input checked="checked">' }
+    );
   }
 
   @scenario
   'HTML selected options'({ assert }: Scenario) {
     const ctx = new TestContext(assert);
-    ctx.builder.openElement('select');
-    ctx.builder.flushElement(null);
-    ctx.builder.openElement('option');
-    ctx.builder.flushElement();
-    ctx.builder.appendText('1');
-    ctx.builder.closeElement();
-    ctx.builder.openElement('option');
-    ctx.builder.setStaticAttribute('selected');
-    ctx.builder.flushElement();
-    ctx.builder.appendText('2');
-    ctx.builder.closeElement();
-    ctx.builder.openElement('option');
-    ctx.builder.flushElement();
-    ctx.builder.appendText('3');
-    ctx.builder.closeElement();
-    ctx.builder.closeElement();
-    ctx.rendered(stripTight`
-      <select>
-        <option>1</option>
-        <option selected>2</option>
-        <option>3</option>
-      </select>
-    `);
+
+    ctx.append(
+      ElementNode({
+        tag: 'select',
+        children: [
+          ElementNode({
+            tag: 'option',
+            children: [TextNode('1')],
+          }),
+          ElementNode({
+            tag: 'option',
+            attributes: [AttributeNode('selected')],
+            children: [TextNode('2')],
+          }),
+          ElementNode({
+            tag: 'option',
+            children: [TextNode('3')],
+          }),
+        ],
+      }),
+      {
+        expect: stripTight`
+        <select>
+          <option>1</option>
+          <option selected>2</option>
+          <option>3</option>
+        </select>
+      `,
+      }
+    );
   }
 
   @scenario
   'HTML multi-select options'({ assert }: Scenario) {
     const ctx = new TestContext(assert);
-    ctx.builder.openElement('select');
-    ctx.builder.setStaticAttribute('multiple');
-    ctx.builder.flushElement();
-    ctx.builder.openElement('option');
-    ctx.builder.flushElement();
-    ctx.builder.appendText('1');
-    ctx.builder.closeElement();
-    ctx.builder.openElement('option');
-    ctx.builder.setStaticAttribute('selected');
-    ctx.builder.flushElement();
-    ctx.builder.appendText('2');
-    ctx.builder.closeElement();
-    ctx.builder.openElement('option');
-    ctx.builder.setStaticAttribute('selected');
-    ctx.builder.flushElement();
-    ctx.builder.appendText('3');
-    ctx.builder.closeElement();
-    ctx.builder.closeElement();
 
-    ctx.rendered(
-      stripTight`
-      <select multiple>
-        <option>1</option>
-        <option selected>2</option>
-        <option selected>3</option>
-      </select>
-      `
+    ctx.append(
+      ElementNode({
+        tag: 'select',
+        attributes: [AttributeNode('multiple')],
+        children: [
+          ElementNode({
+            tag: 'option',
+            children: [TextNode('1')],
+          }),
+          ElementNode({
+            tag: 'option',
+            attributes: [AttributeNode('selected')],
+            children: [TextNode('2')],
+          }),
+          ElementNode({
+            tag: 'option',
+            attributes: [AttributeNode('selected')],
+            children: [TextNode('3')],
+          }),
+        ],
+      }),
+      {
+        expect: stripTight`
+        <select multiple>
+          <option>1</option>
+          <option selected>2</option>
+          <option selected>3</option>
+        </select>
+        `,
+      }
     );
   }
 
@@ -146,33 +173,42 @@ export class ManualInitialRenderSuite {
 
     for (const tagName of VOID_ELEMENTS) {
       const ctx = new TestContext(assert);
-      ctx.builder.openElement(tagName);
-      ctx.builder.flushElement();
-      ctx.builder.closeElement();
-      ctx.rendered('<' + tagName + '>');
+
+      ctx.append(ElementNode({ tag: tagName }), { expect: `<${tagName}>` });
     }
   }
 
   @scenario
   'Nested HTML'({ assert }: Scenario) {
     const ctx = new TestContext(assert);
-    ctx.builder.openElement('div');
-    ctx.builder.setStaticAttribute('class', 'foo');
-    ctx.builder.flushElement();
-    ctx.builder.openElement('p');
-    ctx.builder.flushElement();
-    ctx.builder.openElement('span');
-    ctx.builder.setStaticAttribute('id', 'bar');
-    ctx.builder.setStaticAttribute('data-foo', 'bar');
-    ctx.builder.flushElement();
-    ctx.builder.appendText('hi!');
-    ctx.builder.closeElement();
-    ctx.builder.closeElement();
-    ctx.builder.closeElement();
-    ctx.builder.appendHTML('&nbsp;');
-    ctx.builder.appendText('More content');
-    ctx.rendered(
-      `<div class="foo"><p><span id="bar" data-foo="bar">hi!</span></p></div>\u00A0More content`
+
+    ctx.append(
+      FragmentNode([
+        ElementNode({
+          tag: 'div',
+          attributes: [AttributeNode({ name: 'class', value: 'foo' })],
+          children: [
+            ElementNode({
+              tag: 'p',
+              children: [
+                ElementNode({
+                  tag: 'span',
+                  attributes: [
+                    AttributeNode({ name: 'id', value: 'bar' }),
+                    AttributeNode({ name: 'data-foo', value: 'bar' }),
+                  ],
+                  children: [TextNode('hi!')],
+                }),
+              ],
+            }),
+          ],
+        }),
+        HtmlNode('&nbsp;'),
+        TextNode('More content'),
+      ]),
+      {
+        expect: `<div class="foo"><p><span id="bar" data-foo="bar">hi!</span></p></div>\u00A0More content`,
+      }
     );
   }
 
@@ -241,61 +277,87 @@ export class ManualInitialRenderSuite {
   }
 
   @scenario
+  'Custom Elements with dynamic attributes'({ assert }: Scenario) {
+    const ctx = new TestContext(assert);
+    const dynamic = cell('things');
+
+    const result = ctx.append(
+      ElementNode({
+        tag: 'fake-thing',
+        children: [
+          ElementNode({
+            tag: 'other-fake-thing',
+            attributes: [
+              DynamicAttributeNode({
+                name: 'data-src',
+                value: () => `extra-${dynamic.get()}-here`,
+              }),
+            ],
+          }),
+        ],
+      }),
+      {
+        expect:
+          '<fake-thing><other-fake-thing data-src="extra-things-here"></other-fake-thing></fake-thing>',
+      }
+    );
+
+    dynamic.set('stuff');
+    result.revalidate({
+      expect:
+        '<fake-thing><other-fake-thing data-src="extra-stuff-here"></other-fake-thing></fake-thing>',
+    });
+
+    dynamic.set('');
+    result.revalidate({
+      expect:
+        '<fake-thing><other-fake-thing data-src="extra--here"></other-fake-thing></fake-thing>',
+    });
+
+    dynamic.set('things');
+    result.revalidate({
+      expect:
+        '<fake-thing><other-fake-thing data-src="extra-things-here"></other-fake-thing></fake-thing>',
+    });
+  }
+
+  @scenario
   'Text curlies'({ assert, events }: Scenario) {
     const title = cell('hello');
     const ctx = new TestContext(assert);
-
-    const render = (buffer: ElementBuilder) => {
-      buffer.openElement('div');
-      buffer.flushElement();
-
-      const titleNode = dynamicText(buffer, events, title);
-
-      buffer.closeElement();
-
-      const result = ctx.rendered(`<div>hello</div>`);
-
-      return {
-        ...result,
-        revalidate: () => {
-          getValue(titleNode);
-        },
-      };
+    const log: DebugLog = {
+      log: (type: string, phase: 'render' | 'update', value: unknown) => {
+        events.record(`${type}[${phase}] ${JSON.stringify(value)}`);
+      },
     };
 
-    const result = render(ctx.builder);
+    const render = FragmentNode([
+      ElementNode({
+        tag: 'div',
+        children: [
+          DynamicTextNode(() => title.get()),
+          ElementNode({ tag: 'span', children: [DynamicTextNode(() => title.get())] }),
+        ],
+      }),
+    ]);
 
-    events.expect('initial text hello');
-    result.revalidate();
-    events.expect([]);
+    const result = ctx.append(render, { expect: '<div>hello<span>hello</span></div>', log });
+    events.expect('TextNode[render] "hello"', 'TextNode[render] "hello"');
 
     title.set('goodbye');
-    result.revalidate();
-    result.updated('<div>goodbye</div>');
-    events.expect('updated text goodbye');
+    result.revalidate({ expect: '<div>goodbye<span>goodbye</span></div>' });
+    events.expect('TextNode[update] "goodbye"', 'TextNode[update] "goodbye"');
 
-    result.revalidate();
+    title.set('');
+    result.revalidate({ expect: '<div><span></span></div>' });
+    events.expect('TextNode[update] ""', 'TextNode[update] ""');
+
+    title.set('hello');
+    result.revalidate({ expect: '<div>hello<span>hello</span></div>' });
+    events.expect('TextNode[update] "hello"', 'TextNode[update] "hello"');
+
     events.expect([]);
   }
-
-  // @test
-  // 'Text curlies'() {
-  //   this.render('<div>{{this.title}}<span>{{this.title}}</span></div>', { title: 'hello' });
-  //   this.assertHTML('<div>hello<span>hello</span></div>');
-  //   this.assertStableRerender();
-
-  //   this.rerender({ title: 'goodbye' });
-  //   this.assertHTML('<div>goodbye<span>goodbye</span></div>');
-  //   this.assertStableNodes();
-
-  //   this.rerender({ title: '' });
-  //   this.assertHTML('<div><span></span></div>');
-  //   this.assertStableNodes();
-
-  //   this.rerender({ title: 'hello' });
-  //   this.assertHTML('<div>hello<span>hello</span></div>');
-  //   this.assertStableNodes();
-  // }
 }
 
 function cell<T>(value: T) {
@@ -316,46 +378,11 @@ function cell<T>(value: T) {
   };
 }
 
-interface Cell<T> {
-  get(): T;
-  set(update: T): void;
-}
-
-function dynamicText(builder: ElementBuilder, events: EventRecorder, text: Cell<string>) {
-  let last = undefined as
-    | undefined
-    | {
-        node: SimpleText;
-        value: string;
-      };
-
-  const cache = createCache(() => {
-    const next = text.get();
-
-    if (!last) {
-      last = {
-        node: builder.appendText(next),
-        value: next,
-      };
-      events.record(`initial text ${next}`);
-    } else if (next !== last.value) {
-      last.value = next;
-      last.node.nodeValue = next;
-      events.record(`updated text ${next}`);
-    }
-
-    return last.node;
-  });
-
-  getValue(cache);
-
-  return cache;
-}
-
 class TestContext {
   readonly ctx: StrictRuntime;
   readonly element: SimpleElement;
   readonly builder: ElementBuilder;
+  readonly tree: DynamicTreeBuilder;
   readonly #assert: Assert;
 
   constructor(assert: Assert) {
@@ -366,7 +393,30 @@ class TestContext {
       for: 'initial-render',
     }));
 
+    this.tree = new DynamicTreeBuilder(builder);
+
     builder.pushSimpleBlock();
+  }
+
+  append(node: RenderNodeInstance, options: { expect: string; log?: DebugLog }) {
+    const update = this.tree.append(node, { log: options.log, env: this.ctx.env });
+    const result = this.rendered(options.expect);
+
+    const appended = {
+      revalidate: (options: { expect: string }) => {
+        update?.();
+        result.updated(options.expect);
+
+        // no-op rerender
+        update?.();
+        result.updated(options.expect);
+      },
+    };
+
+    // no-op rerender
+    appended.revalidate(options);
+
+    return appended;
   }
 
   rendered(content: string) {
