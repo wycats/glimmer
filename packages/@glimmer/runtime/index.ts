@@ -56,6 +56,7 @@ export {
   ElementNode,
   FragmentNode,
   HtmlNode,
+  IfNode,
   TextNode,
 } from './lib/strict/nodes';
 export { StrictRuntime } from './lib/strict/strict-ctx';

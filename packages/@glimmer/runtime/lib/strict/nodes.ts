@@ -2,6 +2,8 @@ import type { ElementBuilder, Environment, ModifierInstance } from '@glimmer/int
 import type { Cache } from '@glimmer/validator';
 import { createCache, getValue, isConst } from '@glimmer/validator';
 
+import { NewElementBuilder } from '../vm/element-builder';
+
 export interface AppendContext {
   env: Environment;
   log?: DebugLog | undefined;
@@ -31,6 +33,73 @@ export const AttributeNode: RenderNode<string | { name: string; value: string }>
   return {
     append: (builder) => {
       builder.setStaticAttribute(name, value ?? '');
+    },
+  };
+};
+
+interface IfNodeOptions {
+  condition: () => unknown;
+  then: RenderNodeInstance;
+  else?: RenderNodeInstance;
+}
+
+export const IfNode: RenderNode<IfNodeOptions> = ({ condition, then, else: inverse }) => {
+  const conditionCache = createCache(condition);
+
+  return {
+    append: (builder, ctx) => {
+      const initial = !!getValue(conditionCache);
+      const render = initial ? then : inverse;
+      const { env } = ctx;
+
+      if (isConst(conditionCache)) {
+        if (render) {
+          render.append(builder, ctx);
+        }
+        return;
+      }
+
+      const block = builder.pushUpdatableBlock();
+      const updates = render?.append(builder, ctx);
+      builder.popBlock();
+
+      if (!updates) {
+        return;
+      }
+
+      let last = {
+        condition: initial,
+        updates,
+      };
+
+      builder.popBlock();
+
+      return () => {
+        const next = !!getValue(conditionCache);
+        if (next === last.condition) {
+          return last.updates();
+        } else {
+          last.condition = next;
+          const resumeBuilder = NewElementBuilder.resume(env, block);
+          const render = next ? then : inverse;
+
+          if (render) {
+            const updates = render?.append(resumeBuilder, ctx);
+
+            if (updates) {
+              last.updates = updates;
+              resumeBuilder.popBlock();
+              return 'invalid';
+            } else {
+              resumeBuilder.popBlock();
+              return 'constant';
+            }
+          }
+
+          resumeBuilder.popBlock();
+          return 'invalid';
+        }
+      };
     },
   };
 };

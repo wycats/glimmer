@@ -12,7 +12,8 @@ import {
   StrictRuntime,
   TextNode,
 } from '@glimmer/runtime';
-import { castToBrowser, checkNode, NS_SVG, strip, unwrap } from '@glimmer/util';
+import { IfNode } from '@glimmer/runtime/lib/strict/nodes';
+import { castToBrowser, checkNode, COMMENT_NODE, NS_SVG, strip, unwrap } from '@glimmer/util';
 import { consumeTag, createTag, dirtyTag } from '@glimmer/validator';
 
 import type { Scenario } from '../test-decorator';
@@ -20,9 +21,13 @@ import type { Scenario } from '../test-decorator';
 import { assertNodeTagName } from '../dom/assertions';
 import { firstElementChild, getElementsByTagName, toHTML, toInnerHTML } from '../dom/simple-utils';
 import { RenderTest } from '../render-test';
+import { normalizeSnapshot } from '../snapshot';
 import { scenario, test } from '../test-decorator';
 import { testSuite } from '../test-helpers/module';
 import { stripTight } from '../test-helpers/strings';
+
+export type IndividualSnapshot = 'up' | 'down' | SimpleNode;
+export type NodesSnapshot = IndividualSnapshot[];
 
 @testSuite('Manual Initial Render Suite')
 export class ManualInitialRenderSuite {
@@ -358,6 +363,55 @@ export class ManualInitialRenderSuite {
 
     events.expect([]);
   }
+
+  @scenario
+  @test
+  'Simple blocks'({ assert }: Scenario) {
+    const ctx = new TestContext(assert);
+    const admin = cell(true);
+    const user = cell('chancancode');
+
+    const result = ctx.append(
+      ElementNode({
+        tag: 'div',
+        children: [
+          IfNode({
+            condition: () => admin.get(),
+            then: ElementNode({
+              tag: 'p',
+              children: [DynamicTextNode(() => user.get())],
+            }),
+          }),
+        ],
+      }),
+      { expect: '<div><p>chancancode</p></div>' }
+    );
+
+    const p = ctx.element.firstChild!.firstChild!;
+
+    ctx.assertStableNodes(
+      () => {
+        admin.set(false);
+        result.revalidate({ expect: '<div><!----></div>' });
+      },
+      { except: p }
+    );
+
+    const comment = ctx.element.firstChild!.firstChild!;
+
+    ctx.assertStableNodes(
+      () => {
+        admin.set(true);
+        result.revalidate({ expect: '<div><p>chancancode</p></div>' });
+      },
+      { except: comment }
+    );
+
+    ctx.assertStableNodes(() => {
+      user.set('socanyou');
+      result.revalidate({ expect: '<div><p>socanyou</p></div>' });
+    });
+  }
 }
 
 function cell<T>(value: T) {
@@ -383,7 +437,7 @@ class TestContext {
   readonly element: SimpleElement;
   readonly builder: ElementBuilder;
   readonly tree: DynamicTreeBuilder;
-  readonly #assert: Assert;
+  readonly #assert: (typeof QUnit)['assert'];
 
   constructor(assert: Assert) {
     this.#assert = assert;
@@ -396,6 +450,63 @@ class TestContext {
     this.tree = new DynamicTreeBuilder(builder);
 
     builder.pushSimpleBlock();
+  }
+
+  assertStableNodes(
+    block: () => void,
+    { except: _except }: { except: SimpleNode | SimpleNode[] } = {
+      except: [],
+    }
+  ) {
+    const prev = this.#takeSnapshot();
+
+    let except: Array<SimpleNode>;
+
+    if (Array.isArray(_except)) {
+      except = uniq(_except);
+    } else {
+      except = [_except];
+    }
+
+    block();
+
+    let { oldSnapshot, newSnapshot } = normalizeSnapshot(prev, this.#takeSnapshot(), except);
+
+    this.#assert.deepEqual(oldSnapshot, newSnapshot, 'DOM nodes are stable');
+  }
+
+  #takeSnapshot(): NodesSnapshot {
+    let snapshot: NodesSnapshot = [];
+
+    let node = this.element.firstChild;
+    let upped = false;
+
+    while (node && node !== this.element) {
+      if (upped) {
+        if (node.nextSibling) {
+          node = node.nextSibling;
+          upped = false;
+        } else {
+          snapshot.push('up');
+          node = node.parentNode;
+        }
+      } else {
+        if (!isServerMarker(node)) snapshot.push(node);
+
+        if (node.firstChild) {
+          snapshot.push('down');
+          node = node.firstChild;
+        } else if (node.nextSibling) {
+          node = node.nextSibling;
+        } else {
+          snapshot.push('up');
+          node = node.parentNode;
+          upped = true;
+        }
+      }
+    }
+
+    return snapshot;
   }
 
   append(node: RenderNodeInstance, options: { expect: string; log?: DebugLog }) {
@@ -1781,3 +1892,14 @@ export class InitialRenderSuite extends RenderTest {
 }
 
 const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
+
+function uniq<T>(arr: T[]): T[] {
+  return arr.reduce((accum: T[], val) => {
+    if (accum.indexOf(val) === -1) accum.push(val);
+    return accum;
+  }, [] as T[]);
+}
+
+export function isServerMarker(node: SimpleNode) {
+  return node.nodeType === COMMENT_NODE && node.nodeValue.charAt(0) === '%';
+}
