@@ -59,6 +59,8 @@ export interface DOMStack {
     namespace?: Nullable<string>
   ): AttributeOperation;
 
+  setProperty(name: string, value: unknown): void;
+
   closeElement(): Nullable<ModifierInstance[]>;
 }
 

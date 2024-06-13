@@ -136,6 +136,10 @@ class SerializeBuilder extends NewElementBuilder implements ElementBuilder {
     dom.insertBefore(element, script, insertBefore);
     return super.pushRemoteElement(element, cursorId, insertBefore);
   }
+
+  override setProperty(_name: string, _value: unknown): void {
+    // do nothing in SSR
+  }
 }
 
 export function serializeBuilder(

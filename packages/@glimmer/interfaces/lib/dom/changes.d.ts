@@ -13,6 +13,7 @@ export interface GlimmerDOMOperations {
 export interface GlimmerTreeChanges extends GlimmerDOMOperations {
   setAttribute(element: SimpleElement, name: string, value: string): void;
   removeAttribute(element: SimpleElement, name: string): void;
+  setProperty(element: SimpleElement, name: string, value: unknown): void;
   insertAfter(element: SimpleElement, node: SimpleNode, reference: SimpleNode): void;
 }
 

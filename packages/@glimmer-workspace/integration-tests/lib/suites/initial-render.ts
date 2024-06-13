@@ -1,18 +1,16 @@
 import type { Bounds, ElementBuilder, SimpleElement, SimpleNode } from '@glimmer/interfaces';
-import type { DebugLog, RenderNodeInstance } from '@glimmer/runtime';
+import type { DebugLog, IntoRenderNodeInstance } from '@glimmer/runtime';
 import {
-  AttributeNode,
   Cursor,
-  DynamicAttributeNode,
   DynamicTextNode,
   DynamicTreeBuilder,
   ElementNode,
   FragmentNode,
-  HtmlNode,
+  nodes as n,
   StrictRuntime,
   TextNode,
 } from '@glimmer/runtime';
-import { IfNode } from '@glimmer/runtime/lib/strict/nodes';
+import { intoRenderNodeInstance } from '@glimmer/runtime/lib/strict/nodes';
 import { castToBrowser, checkNode, COMMENT_NODE, NS_SVG, strip, unwrap } from '@glimmer/util';
 import { consumeTag, createTag, dirtyTag } from '@glimmer/validator';
 
@@ -35,23 +33,14 @@ export class ManualInitialRenderSuite {
   @scenario
   'text content'({ assert }: Scenario) {
     const ctx = new TestContext(assert);
-    ctx.append(TextNode('content'), { expect: 'content' });
+    ctx.append(n.text('content'), { expect: 'content' });
   }
 
   @scenario
   'HTML tags'({ assert }: Scenario) {
     const ctx = new TestContext(assert);
     ctx.append(
-      FragmentNode([
-        ElementNode({
-          tag: 'h1',
-          children: [TextNode('hello!')],
-        }),
-        ElementNode({
-          tag: 'div',
-          children: [TextNode('content')],
-        }),
-      ]),
+      [n.el('h1', { body: [TextNode('hello!')] }), n.el('div', { body: [TextNode('content')] })],
       { expect: '<h1>hello!</h1><div>content</div>' }
     );
   }
@@ -61,13 +50,9 @@ export class ManualInitialRenderSuite {
     const ctx = new TestContext(assert);
 
     ctx.append(
-      ElementNode({
-        tag: 'div',
-        attributes: [
-          AttributeNode({ name: 'class', value: 'foo' }),
-          AttributeNode({ name: 'id', value: 'bar' }),
-        ],
-        children: [TextNode('content')],
+      n.el('div', {
+        attrs: { class: 'foo', id: 'bar' },
+        body: n.text('content'),
       }),
       { expect: '<div class="foo" id="bar">content</div>' }
     );
@@ -78,9 +63,8 @@ export class ManualInitialRenderSuite {
     const ctx = new TestContext(assert);
 
     ctx.append(
-      ElementNode({
-        tag: 'input',
-        attributes: [AttributeNode({ name: 'checked', value: 'checked' })],
+      n.el('input', {
+        attrs: { checked: 'checked' },
       }),
       { expect: '<input checked="checked">' }
     );
@@ -91,21 +75,17 @@ export class ManualInitialRenderSuite {
     const ctx = new TestContext(assert);
 
     ctx.append(
-      ElementNode({
-        tag: 'select',
-        children: [
-          ElementNode({
-            tag: 'option',
-            children: [TextNode('1')],
+      n.el('select', {
+        body: [
+          n.el('option', {
+            body: [n.text('1')],
           }),
-          ElementNode({
-            tag: 'option',
-            attributes: [AttributeNode('selected')],
-            children: [TextNode('2')],
+          n.el('option', {
+            attrs: { selected: true },
+            body: [n.text('2')],
           }),
-          ElementNode({
-            tag: 'option',
-            children: [TextNode('3')],
+          n.el('option', {
+            body: [n.text('3')],
           }),
         ],
       }),
@@ -126,23 +106,19 @@ export class ManualInitialRenderSuite {
     const ctx = new TestContext(assert);
 
     ctx.append(
-      ElementNode({
-        tag: 'select',
-        attributes: [AttributeNode('multiple')],
-        children: [
-          ElementNode({
-            tag: 'option',
-            children: [TextNode('1')],
+      n.el('select', {
+        attrs: { multiple: true },
+        body: [
+          n.el('option', {
+            body: [n.text('1')],
           }),
-          ElementNode({
-            tag: 'option',
-            attributes: [AttributeNode('selected')],
-            children: [TextNode('2')],
+          n.el('option', {
+            attrs: { selected: true },
+            body: [n.text('2')],
           }),
-          ElementNode({
-            tag: 'option',
-            attributes: [AttributeNode('selected')],
-            children: [TextNode('3')],
+          n.el('option', {
+            attrs: { selected: true },
+            body: [n.text('3')],
           }),
         ],
       }),
@@ -190,27 +166,21 @@ export class ManualInitialRenderSuite {
 
     ctx.append(
       FragmentNode([
-        ElementNode({
-          tag: 'div',
-          attributes: [AttributeNode({ name: 'class', value: 'foo' })],
-          children: [
-            ElementNode({
-              tag: 'p',
-              children: [
-                ElementNode({
-                  tag: 'span',
-                  attributes: [
-                    AttributeNode({ name: 'id', value: 'bar' }),
-                    AttributeNode({ name: 'data-foo', value: 'bar' }),
-                  ],
-                  children: [TextNode('hi!')],
+        n.el('div', {
+          attrs: { class: 'foo' },
+          body: [
+            n.el('p', {
+              body: [
+                n.el('span', {
+                  attrs: { id: 'bar', 'data-foo': 'bar' },
+                  body: [n.text('hi!')],
                 }),
               ],
             }),
           ],
         }),
-        HtmlNode('&nbsp;'),
-        TextNode('More content'),
+        n.html('&nbsp;'),
+        n.text('More content'),
       ]),
       {
         expect: `<div class="foo"><p><span id="bar" data-foo="bar">hi!</span></p></div>\u00A0More content`,
@@ -288,17 +258,10 @@ export class ManualInitialRenderSuite {
     const dynamic = cell('things');
 
     const result = ctx.append(
-      ElementNode({
-        tag: 'fake-thing',
-        children: [
-          ElementNode({
-            tag: 'other-fake-thing',
-            attributes: [
-              DynamicAttributeNode({
-                name: 'data-src',
-                value: () => `extra-${dynamic.get()}-here`,
-              }),
-            ],
+      n.el('fake-thing', {
+        body: [
+          n.el('other-fake-thing', {
+            attrs: { 'data-src': () => `extra-${dynamic.get()}-here` },
           }),
         ],
       }),
@@ -338,12 +301,8 @@ export class ManualInitialRenderSuite {
     };
 
     const render = FragmentNode([
-      ElementNode({
-        tag: 'div',
-        children: [
-          DynamicTextNode(() => title.get()),
-          ElementNode({ tag: 'span', children: [DynamicTextNode(() => title.get())] }),
-        ],
+      n.el('div', {
+        body: [n.text(() => title.get()), n.el('span', { body: [n.text(() => title.get())] })],
       }),
     ]);
 
@@ -372,15 +331,10 @@ export class ManualInitialRenderSuite {
     const user = cell('chancancode');
 
     const result = ctx.append(
-      ElementNode({
-        tag: 'div',
-        children: [
-          IfNode({
-            condition: () => admin.get(),
-            then: ElementNode({
-              tag: 'p',
-              children: [DynamicTextNode(() => user.get())],
-            }),
+      n.el('div', {
+        body: [
+          n.if(() => admin.get(), {
+            then: n.el('p', { body: [DynamicTextNode(() => user.get())] }),
           }),
         ],
       }),
@@ -416,12 +370,8 @@ export class ManualInitialRenderSuite {
     const model = new Model();
 
     const result = ctx.append(
-      ElementNode({
-        tag: 'div',
-        children: [
-          DynamicTextNode(() => model.foo.bar),
-          ElementNode({ tag: 'span', children: [DynamicTextNode(() => model.foo.bar)] }),
-        ],
+      n.el('div', {
+        body: [n.text(() => model.foo.bar), n.el('span', { body: [n.text(() => model.foo.bar)] })],
       }),
       { expect: '<div>hello<span>hello</span></div>' }
     );
@@ -442,12 +392,8 @@ export class ManualInitialRenderSuite {
     const title = cell('<strong>hello</strong>');
 
     const result = ctx.append(
-      ElementNode({
-        tag: 'div',
-        children: [
-          DynamicTextNode(() => title.get()),
-          ElementNode({ tag: 'span', children: [DynamicTextNode(() => title.get())] }),
-        ],
+      n.el('div', {
+        body: [n.text(() => title.get()), n.el('span', { body: [n.text(() => title.get())] })],
       }),
       {
         expect:
@@ -586,8 +532,11 @@ class TestContext {
     return snapshot;
   }
 
-  append(node: RenderNodeInstance, options: { expect: string; log?: DebugLog }) {
-    const update = this.tree.append(node, { log: options.log, env: this.ctx.env });
+  append(node: IntoRenderNodeInstance, options: { expect: string; log?: DebugLog }) {
+    const update = this.tree.append(intoRenderNodeInstance(node), {
+      log: options.log,
+      env: this.ctx.env,
+    });
     const result = this.rendered(options.expect);
 
     const appended = {

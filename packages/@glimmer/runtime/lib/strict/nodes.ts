@@ -27,9 +27,11 @@ export const IfNode: RenderNode<IfNodeOptions> = ({ condition, then, else: inver
   });
 };
 
+export type AttrValue = string | boolean;
+
 export const DynamicAttributeNode: RenderNode<{
   name: string;
-  value: () => string;
+  value: () => AttrValue;
   trusting?: boolean;
 }> = ({ name, value, trusting = false }) => {
   const valueCache = createCache(value);
@@ -45,22 +47,39 @@ export const DynamicAttributeNode: RenderNode<{
   });
 };
 
+export const DynamicPropertyNode: RenderNode<{
+  name: string;
+  value: () => unknown;
+}> = ({ name, value }) => {
+  const valueCache = createCache(value);
+
+  return render('DynamicProperty', [valueCache], {
+    render: (ctx, value) => {
+      ctx.buffer.setProperty(name, value);
+      const element = ctx.buffer.constructing!;
+
+      return (next) => {
+        ctx.env.getDOM().setProperty(element, name, next);
+      };
+    },
+  });
+};
+
 export const ElementNode: RenderNode<{
   tag: string;
   attributes?: RenderNodeInstance[] | undefined;
   modifiers?: ModifierInstance[] | undefined;
-  children?: RenderNodeInstance[] | undefined;
+  body?: RenderNodeInstance | undefined;
 }> = (element) => {
-  const { tag, attributes, modifiers, children } = element;
+  const { tag, attributes, modifiers, body } = element;
   const attrFrag = attributes ? FragmentNode(attributes) : null;
-  const bodyFrag = children ? FragmentNode(children) : null;
 
   return {
     append: (ctx) => {
       ctx.buffer.openElement(tag);
       const attrUpdates = cacheForUpdate(attrFrag?.append(ctx));
       ctx.buffer.flushElement(modifiers);
-      const bodyUpdates = cacheForUpdate(bodyFrag?.append(ctx));
+      const bodyUpdates = cacheForUpdate(body?.append(ctx));
       ctx.buffer.closeElement();
 
       if (attrUpdates || bodyUpdates) {
@@ -167,24 +186,67 @@ export const DynamicHtmlNode: RenderNode<() => string> = (text) => {
   });
 };
 
-export const AttributeNode: RenderNode<string | { name: string; value: string }> = (attribute) => {
+export const AttributeNode: RenderNode<string | { name: string; value: string | boolean }> = (
+  attribute
+) => {
   const { name, value } =
-    typeof attribute === 'string' ? { name: attribute, value: '' } : attribute;
+    typeof attribute === 'string' ? { name: attribute, value: true } : attribute;
   return {
     append: ({ buffer }) => {
-      buffer.setStaticAttribute(name, value ?? '');
+      const attrValue = toAttrValue(name, value);
+      if (attrValue !== undefined) {
+        buffer.setStaticAttribute(name, attrValue);
+      }
     },
   };
 };
 
+export const PropertyNode: RenderNode<{ name: string; value: unknown }> = ({ name, value }) => {
+  return {
+    append: ({ buffer }) => {
+      buffer.setProperty(name, value);
+    },
+  };
+};
+
+function toAttrValue(name: string, value: string | boolean): string | undefined {
+  if (value === true) {
+    return '';
+  } else if (value !== false) {
+    return value;
+  }
+}
+
+export type IntoRenderNodeInstance = RenderNodeInstance | RenderNodeInstance[];
+
+export function intoRenderNodeInstance(node: IntoRenderNodeInstance): RenderNodeInstance;
+export function intoRenderNodeInstance(
+  node: IntoRenderNodeInstance | undefined
+): RenderNodeInstance | undefined;
+export function intoRenderNodeInstance(
+  node: IntoRenderNodeInstance | undefined
+): RenderNodeInstance | undefined {
+  if (Array.isArray(node)) {
+    return FragmentNode(node);
+  } else {
+    return node;
+  }
+}
+
+export type IntoAttrValue = string | boolean | (() => string | boolean);
+
 export const nodes = {
   if: (
     condition: () => unknown,
-    { then, else: inverse }: { then: RenderNodeInstance; else?: RenderNodeInstance }
+    { then, else: inverse }: { then: IntoRenderNodeInstance; else?: IntoRenderNodeInstance }
   ) => {
-    return IfNode({ condition, then, else: inverse });
+    return IfNode({
+      condition,
+      then: intoRenderNodeInstance(then),
+      else: intoRenderNodeInstance(inverse),
+    });
   },
-  attr: (name: string, value: string | (() => string), trusting = false) => {
+  attr: (name: string, value: IntoAttrValue, trusting = false) => {
     if (typeof value === 'function') {
       return DynamicAttributeNode({ name, value, trusting });
     } else {
@@ -194,16 +256,45 @@ export const nodes = {
   el: (
     tag: string,
     options: {
-      attrs?: RenderNodeInstance[];
+      attrs?: Record<string, string | boolean | (() => string | boolean)>;
+      props?: Record<string, () => unknown>;
       modifiers?: ModifierInstance[];
-      children?: RenderNodeInstance[];
+      body?: IntoRenderNodeInstance;
     } = {}
   ) => {
+    const attributes = options.attrs
+      ? Object.entries(options.attrs).map(([name, value]) => {
+          if (typeof value === 'function') {
+            return DynamicAttributeNode({ name, value });
+          } else {
+            return AttributeNode({ name, value });
+          }
+        })
+      : [];
+
+    const props = options.props
+      ? Object.entries(options.props).map(([name, value]) => DynamicPropertyNode({ name, value }))
+      : [];
+
     return ElementNode({
       tag,
-      attributes: options.attrs,
+      attributes: [...attributes, ...props],
       modifiers: options.modifiers,
-      children: options.children,
+      body: intoRenderNodeInstance(options.body),
     });
+  },
+  text: (text: string | (() => string)) => {
+    if (typeof text === 'function') {
+      return DynamicTextNode(text);
+    } else {
+      return TextNode(text);
+    }
+  },
+  html: (text: string | (() => string)) => {
+    if (typeof text === 'function') {
+      return DynamicHtmlNode(text);
+    } else {
+      return HtmlNode(text);
+    }
   },
 };

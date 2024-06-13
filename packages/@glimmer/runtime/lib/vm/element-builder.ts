@@ -375,6 +375,11 @@ export class NewElementBuilder implements ElementBuilder {
     attribute.set(this, value, this.env);
     return attribute;
   }
+
+  setProperty(name: string, value: unknown): void {
+    let element = this.constructing!;
+    (element as any)[name] = value;
+  }
 }
 
 export class SimpleLiveBlock implements LiveBlock {

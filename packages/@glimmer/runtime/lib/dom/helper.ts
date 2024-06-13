@@ -84,6 +84,10 @@ export class DOMChangesImpl extends DOMOperations implements GlimmerTreeChanges 
     element.removeAttribute(name);
   }
 
+  setProperty(element: SimpleElement, name: string, value: unknown) {
+    Reflect.set(element, name, value);
+  }
+
   insertAfter(element: SimpleElement, node: SimpleNode, reference: SimpleNode) {
     this.insertBefore(element, node, reference.nextSibling);
   }
