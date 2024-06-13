@@ -32,13 +32,14 @@ export type AttrValue = string | boolean;
 export const DynamicAttributeNode: RenderNode<{
   name: string;
   value: () => AttrValue;
-  trusting?: boolean;
-}> = ({ name, value, trusting = false }) => {
+  namespace?: string | undefined;
+  trusting?: boolean | undefined;
+}> = ({ name, value, namespace, trusting = false }) => {
   const valueCache = createCache(value);
 
   return render('DynamicAttribute', [valueCache], {
     render: (ctx, value) => {
-      const node = ctx.buffer.setDynamicAttribute(name, value, trusting);
+      const node = ctx.buffer.setDynamicAttribute(name, value, trusting, namespace);
 
       return (next) => {
         node.update(next, ctx.env);
@@ -217,7 +218,7 @@ function toAttrValue(name: string, value: string | boolean): string | undefined 
   }
 }
 
-export type IntoRenderNodeInstance = RenderNodeInstance | RenderNodeInstance[];
+export type IntoRenderNodeInstance = string | RenderNodeInstance | RenderNodeInstance[];
 
 export function intoRenderNodeInstance(node: IntoRenderNodeInstance): RenderNodeInstance;
 export function intoRenderNodeInstance(
@@ -228,12 +229,67 @@ export function intoRenderNodeInstance(
 ): RenderNodeInstance | undefined {
   if (Array.isArray(node)) {
     return FragmentNode(node);
+  } else if (typeof node === 'string') {
+    return TextNode(node);
   } else {
     return node;
   }
 }
 
 export type IntoAttrValue = string | boolean | (() => string | boolean);
+
+interface FullElOptions {
+  tag: string;
+  attrs?: Record<string, IntoAttrValue>;
+  props?: Record<string, () => unknown>;
+  modifiers?: ModifierInstance[];
+  body?: IntoRenderNodeInstance[];
+}
+
+type ElOptions =
+  | [tag: string]
+  | [tag: string, body: IntoRenderNodeInstance[]]
+  | [tag: string, attributes: Record<string, IntoAttrValue>]
+  | [
+      tag: string,
+      body: IntoRenderNodeInstance[],
+      options: { props?: Record<string, () => unknown>; modifiers?: ModifierInstance[] },
+    ]
+  | [tag: string, attributes: Record<string, IntoAttrValue>, body: IntoRenderNodeInstance[]]
+  | [
+      tag: string,
+      attributes: Record<string, IntoAttrValue>,
+      body: IntoRenderNodeInstance[],
+      options: {
+        props?: Record<string, () => unknown>;
+        modifiers?: ModifierInstance[];
+      },
+    ];
+
+function intoElOptions(options: ElOptions): FullElOptions {
+  const [tag, ...rest] = options;
+
+  if (rest.length === 0) {
+    return { tag };
+  }
+
+  if (rest.length === 1) {
+    const [first] = rest;
+    if (Array.isArray(first)) {
+      return { tag, body: first };
+    } else {
+      return { tag, attrs: unwrap(first) };
+    }
+  }
+
+  if (Array.isArray(rest[0])) {
+    const [body, options] = rest as Extract<typeof rest, { 0: unknown[] }>;
+    return { tag, body, ...options };
+  }
+
+  const [attrs, body, extra] = rest as unknown as Exclude<typeof rest, { 0: unknown[] }>;
+  return { tag, attrs, body, ...extra };
+}
 
 export const nodes = {
   if: (
@@ -246,24 +302,23 @@ export const nodes = {
       else: intoRenderNodeInstance(inverse),
     });
   },
-  attr: (name: string, value: IntoAttrValue, trusting = false) => {
+  attr: (name: string, value: IntoAttrValue, options: { ns?: string; trusting?: boolean } = {}) => {
     if (typeof value === 'function') {
-      return DynamicAttributeNode({ name, value, trusting });
+      return DynamicAttributeNode({
+        name,
+        value,
+        namespace: options.ns,
+        trusting: options.trusting,
+      });
     } else {
       return AttributeNode({ name, value });
     }
   },
-  el: (
-    tag: string,
-    options: {
-      attrs?: Record<string, string | boolean | (() => string | boolean)>;
-      props?: Record<string, () => unknown>;
-      modifiers?: ModifierInstance[];
-      body?: IntoRenderNodeInstance;
-    } = {}
-  ) => {
-    const attributes = options.attrs
-      ? Object.entries(options.attrs).map(([name, value]) => {
+  el: (...args: ElOptions) => {
+    const { tag, attrs, body, ...options } = intoElOptions(args);
+
+    const attributes = attrs
+      ? Object.entries(attrs).map(([name, value]) => {
           if (typeof value === 'function') {
             return DynamicAttributeNode({ name, value });
           } else {
@@ -276,11 +331,15 @@ export const nodes = {
       ? Object.entries(options.props).map(([name, value]) => DynamicPropertyNode({ name, value }))
       : [];
 
+    const bodyFragment = body
+      ? FragmentNode(body.map(intoRenderNodeInstance).filter((v) => v !== undefined))
+      : undefined;
+
     return ElementNode({
       tag,
       attributes: [...attributes, ...props],
       modifiers: options.modifiers,
-      body: intoRenderNodeInstance(options.body),
+      body: bodyFragment,
     });
   },
   text: (text: string | (() => string)) => {
@@ -298,3 +357,13 @@ export const nodes = {
     }
   },
 };
+
+function unwrap<T>(value: T | undefined): T {
+  if (import.meta.env.DEV) {
+    if (value === undefined) {
+      throw new Error('Expected value to be defined');
+    }
+  }
+
+  return value as T;
+}

@@ -1,25 +1,21 @@
-import type { Bounds, ElementBuilder, SimpleElement, SimpleNode } from '@glimmer/interfaces';
-import type { DebugLog, IntoRenderNodeInstance } from '@glimmer/runtime';
+import type { SimpleElement, SimpleNode } from '@glimmer/interfaces';
+import type { DebugLog } from '@glimmer/runtime';
 import {
-  Cursor,
+  DynamicAttributeNode,
   DynamicTextNode,
-  DynamicTreeBuilder,
   ElementNode,
   FragmentNode,
   nodes as n,
-  StrictRuntime,
   TextNode,
 } from '@glimmer/runtime';
-import { intoRenderNodeInstance } from '@glimmer/runtime/lib/strict/nodes';
-import { castToBrowser, checkNode, COMMENT_NODE, NS_SVG, strip, unwrap } from '@glimmer/util';
+import { castToBrowser, checkNode, NS_SVG, NS_XLINK, strip, unwrap } from '@glimmer/util';
 import { consumeTag, createTag, dirtyTag } from '@glimmer/validator';
 
-import type { Scenario } from '../test-decorator';
+import type { TestContext } from '../test-decorator';
 
 import { assertNodeTagName } from '../dom/assertions';
-import { firstElementChild, getElementsByTagName, toHTML, toInnerHTML } from '../dom/simple-utils';
+import { firstElementChild, getElementsByTagName } from '../dom/simple-utils';
 import { RenderTest } from '../render-test';
-import { normalizeSnapshot } from '../snapshot';
 import { scenario, test } from '../test-decorator';
 import { testSuite } from '../test-helpers/module';
 import { stripTight } from '../test-helpers/strings';
@@ -31,64 +27,37 @@ export type NodesSnapshot = IndividualSnapshot[];
 @testSuite('Manual Initial Render Suite')
 export class ManualInitialRenderSuite {
   @scenario
-  'text content'({ assert }: Scenario) {
-    const ctx = new TestContext(assert);
+  'text content'(ctx: TestContext) {
     ctx.append(n.text('content'), { expect: 'content' });
   }
 
   @scenario
-  'HTML tags'({ assert }: Scenario) {
-    const ctx = new TestContext(assert);
-    ctx.append(
-      [n.el('h1', { body: [TextNode('hello!')] }), n.el('div', { body: [TextNode('content')] })],
-      { expect: '<h1>hello!</h1><div>content</div>' }
-    );
+  'HTML tags'(ctx: TestContext) {
+    ctx.append([n.el('h1', ['hello!']), n.el('div', ['content'])], {
+      expect: '<h1>hello!</h1><div>content</div>',
+    });
   }
 
   @scenario
-  'HTML attributes'({ assert }: Scenario) {
-    const ctx = new TestContext(assert);
-
-    ctx.append(
-      n.el('div', {
-        attrs: { class: 'foo', id: 'bar' },
-        body: n.text('content'),
-      }),
-      { expect: '<div class="foo" id="bar">content</div>' }
-    );
+  'HTML attributes'(ctx: TestContext) {
+    ctx.append(n.el('div', { class: 'foo', id: 'bar' }, ['content']), {
+      expect: '<div class="foo" id="bar">content</div>',
+    });
   }
 
   @scenario
-  'HTML checked attributes'({ assert }: Scenario) {
-    const ctx = new TestContext(assert);
-
-    ctx.append(
-      n.el('input', {
-        attrs: { checked: 'checked' },
-      }),
-      { expect: '<input checked="checked">' }
-    );
+  'HTML checked attributes'(ctx: TestContext) {
+    ctx.append(n.el('input', { checked: 'checked' }), { expect: '<input checked="checked">' });
   }
 
   @scenario
-  'HTML selected options'({ assert }: Scenario) {
-    const ctx = new TestContext(assert);
-
+  'HTML selected options'(ctx: TestContext) {
     ctx.append(
-      n.el('select', {
-        body: [
-          n.el('option', {
-            body: [n.text('1')],
-          }),
-          n.el('option', {
-            attrs: { selected: true },
-            body: [n.text('2')],
-          }),
-          n.el('option', {
-            body: [n.text('3')],
-          }),
-        ],
-      }),
+      n.el('select', [
+        n.el('option', ['1']),
+        n.el('option', { selected: true }, ['2']),
+        n.el('option', ['3']),
+      ]),
       {
         expect: stripTight`
         <select>
@@ -102,26 +71,13 @@ export class ManualInitialRenderSuite {
   }
 
   @scenario
-  'HTML multi-select options'({ assert }: Scenario) {
-    const ctx = new TestContext(assert);
-
+  'HTML multi-select options'(ctx: TestContext) {
     ctx.append(
-      n.el('select', {
-        attrs: { multiple: true },
-        body: [
-          n.el('option', {
-            body: [n.text('1')],
-          }),
-          n.el('option', {
-            attrs: { selected: true },
-            body: [n.text('2')],
-          }),
-          n.el('option', {
-            attrs: { selected: true },
-            body: [n.text('3')],
-          }),
-        ],
-      }),
+      n.el('select', { multiple: true }, [
+        n.el('option', ['1']),
+        n.el('option', { selected: true }, ['2']),
+        n.el('option', { selected: true }, ['3']),
+      ]),
       {
         expect: stripTight`
         <select multiple>
@@ -135,7 +91,7 @@ export class ManualInitialRenderSuite {
   }
 
   @scenario
-  'void elements'({ assert }: Scenario) {
+  'void elements'(context: TestContext) {
     const VOID_ELEMENTS = [
       'area',
       'base',
@@ -154,31 +110,19 @@ export class ManualInitialRenderSuite {
     ];
 
     for (const tagName of VOID_ELEMENTS) {
-      const ctx = new TestContext(assert);
+      const ctx = context.new();
 
       ctx.append(ElementNode({ tag: tagName }), { expect: `<${tagName}>` });
     }
   }
 
   @scenario
-  'Nested HTML'({ assert }: Scenario) {
-    const ctx = new TestContext(assert);
-
+  'Nested HTML'(ctx: TestContext) {
     ctx.append(
       FragmentNode([
-        n.el('div', {
-          attrs: { class: 'foo' },
-          body: [
-            n.el('p', {
-              body: [
-                n.el('span', {
-                  attrs: { id: 'bar', 'data-foo': 'bar' },
-                  body: [n.text('hi!')],
-                }),
-              ],
-            }),
-          ],
-        }),
+        n.el('div', { class: 'foo' }, [
+          n.el('p', [n.el('span', { id: 'bar', 'data-foo': 'bar' }, ['hi!'])]),
+        ]),
         n.html('&nbsp;'),
         n.text('More content'),
       ]),
@@ -189,8 +133,7 @@ export class ManualInitialRenderSuite {
   }
 
   @scenario
-  'Custom Elements'({ assert }: Scenario) {
-    const ctx = new TestContext(assert);
+  'Custom Elements'(ctx: TestContext) {
     ctx.builder.openElement('use-the-platform');
     ctx.builder.flushElement();
     ctx.builder.closeElement();
@@ -198,8 +141,7 @@ export class ManualInitialRenderSuite {
   }
 
   @scenario
-  'Nested Custom Elements'({ assert }: Scenario) {
-    const ctx = new TestContext(assert);
+  'Nested Custom Elements'(ctx: TestContext) {
     ctx.builder.openElement('use-the-platform');
     ctx.builder.flushElement();
 
@@ -225,8 +167,7 @@ export class ManualInitialRenderSuite {
   }
 
   @scenario
-  'Moar nested Custom Elements'({ assert }: Scenario) {
-    const ctx = new TestContext(assert);
+  'Moar nested Custom Elements'(ctx: TestContext) {
     ctx.builder.openElement('use-the-platform');
     ctx.builder.flushElement();
 
@@ -253,18 +194,13 @@ export class ManualInitialRenderSuite {
   }
 
   @scenario
-  'Custom Elements with dynamic attributes'({ assert }: Scenario) {
-    const ctx = new TestContext(assert);
+  'Custom Elements with dynamic attributes'(ctx: TestContext) {
     const dynamic = cell('things');
 
     const result = ctx.append(
-      n.el('fake-thing', {
-        body: [
-          n.el('other-fake-thing', {
-            attrs: { 'data-src': () => `extra-${dynamic.get()}-here` },
-          }),
-        ],
-      }),
+      n.el('fake-thing', [
+        n.el('other-fake-thing', { 'data-src': () => `extra-${dynamic.get()}-here` }),
+      ]),
       {
         expect:
           '<fake-thing><other-fake-thing data-src="extra-things-here"></other-fake-thing></fake-thing>',
@@ -291,9 +227,9 @@ export class ManualInitialRenderSuite {
   }
 
   @scenario
-  'Text curlies'({ assert, events }: Scenario) {
+  'Text curlies'(ctx: TestContext) {
+    const events = ctx.events;
     const title = cell('hello');
-    const ctx = new TestContext(assert);
     const log: DebugLog = {
       log: (type: string, phase: 'render' | 'update' | 'const', { args }: { args: unknown[] }) => {
         events.record(`${type}[${phase}] ${args.map((a) => JSON.stringify(a)).join(', ')}`);
@@ -301,9 +237,7 @@ export class ManualInitialRenderSuite {
     };
 
     const render = FragmentNode([
-      n.el('div', {
-        body: [n.text(() => title.get()), n.el('span', { body: [n.text(() => title.get())] })],
-      }),
+      n.el('div', [n.text(() => title.get()), n.el('span', [n.text(() => title.get())])]),
     ]);
 
     const result = ctx.append(render, { expect: '<div>hello<span>hello</span></div>', log });
@@ -325,19 +259,16 @@ export class ManualInitialRenderSuite {
   }
 
   @scenario
-  'Simple blocks'({ assert }: Scenario) {
-    const ctx = new TestContext(assert);
+  'Simple blocks'(ctx: TestContext) {
     const admin = cell(true);
     const user = cell('chancancode');
 
     const result = ctx.append(
-      n.el('div', {
-        body: [
-          n.if(() => admin.get(), {
-            then: n.el('p', { body: [DynamicTextNode(() => user.get())] }),
-          }),
-        ],
-      }),
+      n.el('div', [
+        n.if(() => admin.get(), {
+          then: n.el('p', [n.text(() => user.get())]),
+        }),
+      ]),
       { expect: '<div><p>chancancode</p></div>' }
     );
 
@@ -356,9 +287,7 @@ export class ManualInitialRenderSuite {
   }
 
   @scenario
-  'Path expressions'({ assert }: Scenario) {
-    const ctx = new TestContext(assert);
-
+  'Path expressions'(ctx: TestContext) {
     class Foo {
       @tracked bar = 'hello';
     }
@@ -370,9 +299,7 @@ export class ManualInitialRenderSuite {
     const model = new Model();
 
     const result = ctx.append(
-      n.el('div', {
-        body: [n.text(() => model.foo.bar), n.el('span', { body: [n.text(() => model.foo.bar)] })],
-      }),
+      n.el('div', [n.text(() => model.foo.bar), n.el('span', [n.text(() => model.foo.bar)])]),
       { expect: '<div>hello<span>hello</span></div>' }
     );
 
@@ -387,14 +314,11 @@ export class ManualInitialRenderSuite {
   }
 
   @scenario
-  'Text curlies perform escaping'({ assert }: Scenario) {
-    const ctx = new TestContext(assert);
+  'Text curlies perform escaping'(ctx: TestContext) {
     const title = cell('<strong>hello</strong>');
 
     const result = ctx.append(
-      n.el('div', {
-        body: [n.text(() => title.get()), n.el('span', { body: [n.text(() => title.get())] })],
-      }),
+      n.el('div', [n.text(() => title.get()), n.el('span', [n.text(() => title.get())])]),
       {
         expect:
           '<div>&lt;strong&gt;hello&lt;/strong&gt;<span>&lt;strong&gt;hello&lt;/strong&gt;</span></div>',
@@ -417,8 +341,7 @@ export class ManualInitialRenderSuite {
   }
 
   @scenario
-  'Rerender respects whitespace'({ assert }: Scenario) {
-    const ctx = new TestContext(assert);
+  'Rerender respects whitespace'(ctx: TestContext) {
     const foo = cell('bar');
 
     const result = ctx.append(
@@ -435,6 +358,92 @@ export class ManualInitialRenderSuite {
     foo.set('bar');
     result.revalidate({ expect: 'Hello bar ' });
   }
+
+  @scenario
+  'svg href attribute with quotation marks'(ctx: TestContext) {
+    const iconLink = cell('home');
+
+    const result = ctx.append(
+      n.el('svg', [
+        ElementNode({
+          tag: 'use',
+          attributes: [
+            DynamicAttributeNode({
+              name: 'xlink:href',
+              value: () => iconLink.get(),
+              namespace: NS_XLINK,
+            }),
+          ],
+        }),
+      ]),
+      {
+        expect: '<svg><use xlink:href="home"></use></svg>',
+      }
+    );
+
+    const svg = ctx.element.firstChild;
+    if (assertNodeTagName(svg, 'svg')) {
+      const use = svg.firstChild;
+      if (assertNodeTagName(use, 'use')) {
+        ctx.assert.strictEqual(use.href.baseVal, 'home');
+      }
+    }
+  }
+
+  // @test
+  // 'svg href attribute without quotation marks'() {
+  //   this.render(
+  //     `<svg xmlns:xlink="http://www.w3.org/1999/xlink"><use xlink:href={{this.iconLink}}></use></svg>`,
+  //     { iconLink: 'home' }
+  //   );
+  //   this.assertHTML(
+  //     `<svg xmlns:xlink="http://www.w3.org/1999/xlink"><use xlink:href="home"></use></svg>`
+  //   );
+  //   const svg = this.element.firstChild;
+  //   if (assertNodeTagName(svg, 'svg')) {
+  //     const use = svg.firstChild;
+  //     if (assertNodeTagName(use, 'use')) {
+  //       this.assert.strictEqual(use.href.baseVal, 'home');
+  //     }
+  //   }
+  // }
+
+  // @test
+  // '<svg> tag with case-sensitive attribute'() {
+  //   this.render('<svg viewBox="0 0 0 0"></svg>');
+  //   this.assertHTML('<svg viewBox="0 0 0 0"></svg>');
+  //   const svg = this.element.firstChild;
+  //   if (assertNodeTagName(svg, 'svg')) {
+  //     this.assert.strictEqual(svg.namespaceURI, NS_SVG);
+  //     this.assert.strictEqual(svg.getAttribute('viewBox'), '0 0 0 0');
+  //   }
+  //   this.assertStableRerender();
+  // }
+
+  // @test
+  // 'nested element in the SVG namespace'() {
+  //   const d = 'M 0 0 L 100 100';
+  //   this.render(`<svg><path d="${d}"></path></svg>`);
+  //   this.assertHTML(`<svg><path d="${d}"></path></svg>`);
+
+  //   const svg = this.element.firstChild;
+
+  //   if (assertNodeTagName(svg, 'svg')) {
+  //     this.assert.strictEqual(svg.namespaceURI, NS_SVG);
+
+  //     const path = svg.firstChild;
+  //     if (assertNodeTagName(path, 'path')) {
+  //       this.assert.strictEqual(
+  //         path.namespaceURI,
+  //         NS_SVG,
+  //         'creates the path element with a namespace'
+  //       );
+  //       this.assert.strictEqual(path.getAttribute('d'), d);
+  //     }
+  //   }
+
+  //   this.assertStableRerender();
+  // }
 }
 
 function cell<T>(value: T) {
@@ -453,159 +462,6 @@ function cell<T>(value: T) {
       dirtyTag(tag);
     },
   };
-}
-
-class TestContext {
-  readonly ctx: StrictRuntime;
-  readonly element: SimpleElement;
-  readonly builder: ElementBuilder;
-  readonly tree: DynamicTreeBuilder;
-  readonly #assert: (typeof QUnit)['assert'];
-
-  constructor(assert: Assert) {
-    this.#assert = assert;
-    const ctx = (this.ctx = StrictRuntime.browser());
-    const element = (this.element = ctx.append.createElement('div'));
-    const builder = (this.builder = ctx.elements(Cursor({ parent: element }), {
-      for: 'initial-render',
-    }));
-
-    this.tree = new DynamicTreeBuilder(builder);
-
-    builder.pushSimpleBlock();
-  }
-
-  assertStableNodes(
-    block: () => void,
-    { except: _except }: { except: SimpleNode | SimpleNode[] } = {
-      except: [],
-    }
-  ) {
-    const prev = this.#takeSnapshot();
-
-    let except: Array<SimpleNode>;
-
-    if (Array.isArray(_except)) {
-      except = uniq(_except);
-    } else {
-      except = [_except];
-    }
-
-    block();
-
-    let { oldSnapshot, newSnapshot } = normalizeSnapshot(prev, this.#takeSnapshot(), except);
-
-    this.#assert.deepEqual(oldSnapshot, newSnapshot, 'DOM nodes are stable');
-  }
-
-  #takeSnapshot(): NodesSnapshot {
-    let snapshot: NodesSnapshot = [];
-
-    let node = this.element.firstChild;
-    let upped = false;
-
-    while (node && node !== this.element) {
-      if (upped) {
-        if (node.nextSibling) {
-          node = node.nextSibling;
-          upped = false;
-        } else {
-          snapshot.push('up');
-          node = node.parentNode;
-        }
-      } else {
-        if (!isServerMarker(node)) snapshot.push(node);
-
-        if (node.firstChild) {
-          snapshot.push('down');
-          node = node.firstChild;
-        } else if (node.nextSibling) {
-          node = node.nextSibling;
-        } else {
-          snapshot.push('up');
-          node = node.parentNode;
-          upped = true;
-        }
-      }
-    }
-
-    return snapshot;
-  }
-
-  append(node: IntoRenderNodeInstance, options: { expect: string; log?: DebugLog }) {
-    const update = this.tree.append(intoRenderNodeInstance(node), {
-      log: options.log,
-      env: this.ctx.env,
-    });
-    const result = this.rendered(options.expect);
-
-    const appended = {
-      revalidate: (options: { expect: string; stable?: { except: SimpleNode | SimpleNode[] } }) => {
-        this.assertStableNodes(() => {
-          update?.();
-          result.updated(options.expect);
-        }, options.stable);
-
-        this.assertStableNodes(() => {
-          // no-op rerender
-          update?.();
-          result.updated(options.expect);
-        });
-      },
-    };
-
-    // no-op rerender
-    appended.revalidate(options);
-
-    return appended;
-  }
-
-  rendered(content: string) {
-    const block = this.builder.popBlock();
-
-    this.#assert.ok(true, `Expected content: ${content}`);
-    this.#assert.strictEqual(
-      toInnerHTML(this.element),
-      content,
-      `The element has the expected content`
-    );
-    this.#assert.strictEqual(boundsToHTML(block), content, `The block has the expected content`);
-
-    // @todo assertStableRerender (it will be a noop in these static tests, but once it works, we
-    // need to verify that it's a noop)
-
-    return {
-      block,
-      updated: (expected: string) => {
-        this.#assert.ok(true, `Expected content (updated): ${expected}`);
-        this.#assert.strictEqual(
-          toInnerHTML(this.element),
-          expected,
-          `The element has the expected content`
-        );
-        this.#assert.strictEqual(
-          boundsToHTML(block),
-          expected,
-          `The block has the expected content`
-        );
-      },
-    };
-  }
-}
-
-function boundsToHTML(bounds: Bounds) {
-  const first = bounds.firstNode();
-  const last = bounds.lastNode();
-
-  let out = '';
-  let current: SimpleNode | null = first;
-
-  while (current && current !== last.nextSibling) {
-    out += toHTML(current);
-    current = current.nextSibling;
-  }
-
-  return out;
 }
 
 export class InitialRenderSuite extends RenderTest {
@@ -1918,14 +1774,3 @@ export class InitialRenderSuite extends RenderTest {
 }
 
 const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
-
-function uniq<T>(arr: T[]): T[] {
-  return arr.reduce((accum: T[], val) => {
-    if (accum.indexOf(val) === -1) accum.push(val);
-    return accum;
-  }, [] as T[]);
-}
-
-export function isServerMarker(node: SimpleNode) {
-  return node.nodeType === COMMENT_NODE && node.nodeValue.charAt(0) === '%';
-}

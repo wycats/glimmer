@@ -10,7 +10,7 @@ import type { DeclaredComponentKind } from '../test-decorator';
 import { JitRenderDelegate } from '../modes/jit/delegate';
 import { NodeJitRenderDelegate } from '../modes/node/env';
 import { JitSerializationDelegate } from '../suites/custom-dom-helper';
-import { getScenarios } from '../test-decorator';
+import { TestContext, getScenarios } from '../test-decorator';
 
 export interface RenderTestConstructor<D extends RenderDelegate, T extends IRenderTest> {
   suiteName: string;
@@ -104,7 +104,8 @@ export function testSuite(name: string) {
         QUnit.test(name, async (assert) => {
           const instance = new klass();
           const events = new EventRecorder();
-          await scenario.call(instance, { assert, events });
+          const context = new TestContext(assert);
+          await scenario.call(instance, context);
           events.done();
         });
       }

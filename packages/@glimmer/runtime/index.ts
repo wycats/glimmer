@@ -51,6 +51,7 @@ export {
   FragmentNode,
   HtmlNode,
   IfNode,
+  intoRenderNodeInstance,
   nodes,
   TextNode,
 } from './lib/strict/nodes';
