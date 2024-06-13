@@ -1,7 +1,7 @@
 import type { Dict, WellKnownAttrName, WellKnownTagName } from '@glimmer/interfaces';
 import { WellKnownAttrNames, WellKnownTagNames } from '@glimmer/wire-format';
 
-// There is a small whitelist of namespaced attributes specially
+// There is a small list of namespaced attributes specially
 // enumerated in
 // https://www.w3.org/TR/html/syntax.html#attributes-0
 //
@@ -19,7 +19,7 @@ const XLINK = 'http://www.w3.org/1999/xlink';
 const XML = 'http://www.w3.org/XML/1998/namespace';
 const XMLNS = 'http://www.w3.org/2000/xmlns/';
 
-const WHITELIST: Dict<string | undefined> = {
+const ALLOWLIST: Dict<string | undefined> = {
   'xlink:actuate': XLINK,
   'xlink:arcrole': XLINK,
   'xlink:href': XLINK,
@@ -35,7 +35,7 @@ const WHITELIST: Dict<string | undefined> = {
 };
 
 export function getAttrNamespace(attrName: string): string | undefined {
-  return WHITELIST[attrName];
+  return ALLOWLIST[attrName];
 }
 
 const DEFLATE_TAG_TABLE: {

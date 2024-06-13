@@ -7,8 +7,9 @@ import {
   FragmentNode,
   nodes as n,
   TextNode,
+  XLINK,
 } from '@glimmer/runtime';
-import { castToBrowser, checkNode, NS_SVG, NS_XLINK, strip, unwrap } from '@glimmer/util';
+import { castToBrowser, checkNode, NS_SVG, strip, unwrap } from '@glimmer/util';
 import { consumeTag, createTag, dirtyTag } from '@glimmer/validator';
 
 import type { TestContext } from '../test-decorator';
@@ -371,7 +372,6 @@ export class ManualInitialRenderSuite {
             DynamicAttributeNode({
               name: 'xlink:href',
               value: () => iconLink.get(),
-              namespace: NS_XLINK,
             }),
           ],
         }),
@@ -386,64 +386,76 @@ export class ManualInitialRenderSuite {
       const use = svg.firstChild;
       if (assertNodeTagName(use, 'use')) {
         ctx.assert.strictEqual(use.href.baseVal, 'home');
+        const attr = use.getAttributeNode('xlink:href');
+        ctx.assert.strictEqual(attr?.localName, 'href');
+        ctx.assert.strictEqual(attr?.prefix, 'xlink');
+        ctx.assert.strictEqual(attr?.namespaceURI, XLINK);
+      }
+    }
+
+    iconLink.set('foo');
+    result.revalidate({ expect: '<svg><use xlink:href="foo"></use></svg>' });
+  }
+
+  @scenario
+  '<svg> tag with case-sensitive attribute'(ctx: TestContext) {
+    ctx.append(n.el('svg', { viewBox: '0 0 0 0' }), {
+      expect: '<svg viewBox="0 0 0 0"></svg>',
+    });
+
+    const svg = ctx.element.firstChild;
+    if (assertNodeTagName(svg, 'svg')) {
+      ctx.assert.strictEqual(svg.namespaceURI, NS_SVG);
+      ctx.assert.strictEqual(svg.getAttribute('viewBox'), '0 0 0 0');
+    }
+  }
+
+  @scenario
+  'nested element in the SVG namespace'(ctx: TestContext) {
+    const d = 'M 0 0 L 100 100';
+    ctx.append(n.el('svg', [n.el('path', { d })]), {
+      expect: `<svg><path d="${d}"></path></svg>`,
+    });
+
+    const svg = ctx.element.firstChild;
+
+    if (assertNodeTagName(svg, 'svg')) {
+      ctx.assert.strictEqual(svg.namespaceURI, NS_SVG);
+
+      const path = svg.firstChild;
+      if (assertNodeTagName(path, 'path')) {
+        ctx.assert.strictEqual(
+          path.namespaceURI,
+          NS_SVG,
+          'creates the path element with a namespace'
+        );
+        ctx.assert.strictEqual(path.getAttribute('d'), d);
       }
     }
   }
 
-  // @test
-  // 'svg href attribute without quotation marks'() {
-  //   this.render(
-  //     `<svg xmlns:xlink="http://www.w3.org/1999/xlink"><use xlink:href={{this.iconLink}}></use></svg>`,
-  //     { iconLink: 'home' }
-  //   );
-  //   this.assertHTML(
-  //     `<svg xmlns:xlink="http://www.w3.org/1999/xlink"><use xlink:href="home"></use></svg>`
-  //   );
-  //   const svg = this.element.firstChild;
-  //   if (assertNodeTagName(svg, 'svg')) {
-  //     const use = svg.firstChild;
-  //     if (assertNodeTagName(use, 'use')) {
-  //       this.assert.strictEqual(use.href.baseVal, 'home');
-  //     }
-  //   }
-  // }
+  @scenario
+  '<foreignObject> tag has an SVG namespace'(ctx: TestContext) {
+    ctx.append(n.el('svg', [n.el('foreignObject', ['Hi'])]), {
+      expect: '<svg><foreignObject>Hi</foreignObject></svg>',
+    });
 
-  // @test
-  // '<svg> tag with case-sensitive attribute'() {
-  //   this.render('<svg viewBox="0 0 0 0"></svg>');
-  //   this.assertHTML('<svg viewBox="0 0 0 0"></svg>');
-  //   const svg = this.element.firstChild;
-  //   if (assertNodeTagName(svg, 'svg')) {
-  //     this.assert.strictEqual(svg.namespaceURI, NS_SVG);
-  //     this.assert.strictEqual(svg.getAttribute('viewBox'), '0 0 0 0');
-  //   }
-  //   this.assertStableRerender();
-  // }
+    const svg = ctx.element.firstChild;
 
-  // @test
-  // 'nested element in the SVG namespace'() {
-  //   const d = 'M 0 0 L 100 100';
-  //   this.render(`<svg><path d="${d}"></path></svg>`);
-  //   this.assertHTML(`<svg><path d="${d}"></path></svg>`);
+    if (assertNodeTagName(svg, 'svg')) {
+      ctx.assert.strictEqual(svg.namespaceURI, NS_SVG);
 
-  //   const svg = this.element.firstChild;
+      const foreignObject = svg.firstChild;
 
-  //   if (assertNodeTagName(svg, 'svg')) {
-  //     this.assert.strictEqual(svg.namespaceURI, NS_SVG);
-
-  //     const path = svg.firstChild;
-  //     if (assertNodeTagName(path, 'path')) {
-  //       this.assert.strictEqual(
-  //         path.namespaceURI,
-  //         NS_SVG,
-  //         'creates the path element with a namespace'
-  //       );
-  //       this.assert.strictEqual(path.getAttribute('d'), d);
-  //     }
-  //   }
-
-  //   this.assertStableRerender();
-  // }
+      if (assertNodeTagName(foreignObject, 'foreignObject')) {
+        ctx.assert.strictEqual(
+          foreignObject.namespaceURI,
+          NS_SVG,
+          'creates the foreignObject element with a namespace'
+        );
+      }
+    }
+  }
 }
 
 function cell<T>(value: T) {

@@ -41,6 +41,7 @@ export { on } from './lib/modifiers/on';
 export { renderComponent, renderMain, renderSync } from './lib/render';
 export { DynamicScopeImpl, PartialScopeImpl } from './lib/scope';
 export { DynamicTreeBuilder } from './lib/strict/dynamic-tree';
+export { ADJUST_FOREIGN_ATTRIBUTES, XLINK, XML, XMLNS } from './lib/strict/html';
 export type { IntoRenderNodeInstance } from './lib/strict/nodes';
 export {
   AttributeNode,

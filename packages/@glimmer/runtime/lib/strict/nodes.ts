@@ -5,6 +5,7 @@ import { createCache, getValue } from '@glimmer/validator';
 import type { PollResult, RenderNode, RenderNodeInstance, UpdateNode } from './render';
 
 import { replace } from '../bounds';
+import { ADJUST_FOREIGN_ATTRIBUTES } from './html';
 import { render, renderBlock, renderStatic } from './render';
 
 export interface IfNodeOptions {
@@ -32,14 +33,18 @@ export type AttrValue = string | boolean;
 export const DynamicAttributeNode: RenderNode<{
   name: string;
   value: () => AttrValue;
-  namespace?: string | undefined;
   trusting?: boolean | undefined;
-}> = ({ name, value, namespace, trusting = false }) => {
+}> = ({ name, value, trusting = false }) => {
   const valueCache = createCache(value);
 
   return render('DynamicAttribute', [valueCache], {
     render: (ctx, value) => {
-      const node = ctx.buffer.setDynamicAttribute(name, value, trusting, namespace);
+      const node = ctx.buffer.setDynamicAttribute(
+        name,
+        value,
+        trusting,
+        ADJUST_FOREIGN_ATTRIBUTES[name] ?? null
+      );
 
       return (next) => {
         node.update(next, ctx.env);
@@ -196,7 +201,7 @@ export const AttributeNode: RenderNode<string | { name: string; value: string | 
     append: ({ buffer }) => {
       const attrValue = toAttrValue(name, value);
       if (attrValue !== undefined) {
-        buffer.setStaticAttribute(name, attrValue);
+        buffer.setStaticAttribute(name, attrValue, ADJUST_FOREIGN_ATTRIBUTES[name] ?? null);
       }
     },
   };
@@ -302,12 +307,11 @@ export const nodes = {
       else: intoRenderNodeInstance(inverse),
     });
   },
-  attr: (name: string, value: IntoAttrValue, options: { ns?: string; trusting?: boolean } = {}) => {
+  attr: (name: string, value: IntoAttrValue, options: { trusting?: boolean } = {}) => {
     if (typeof value === 'function') {
       return DynamicAttributeNode({
         name,
         value,
-        namespace: options.ns,
         trusting: options.trusting,
       });
     } else {
