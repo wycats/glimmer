@@ -310,9 +310,10 @@ export class NewElementBuilder implements ElementBuilder {
     return this.dom.insertHTMLBefore(this.element, this.nextSibling, html);
   }
 
-  appendDynamicHTML(value: string): void {
+  appendDynamicHTML(value: string): Bounds {
     let bounds = this.trustedContent(value);
     this.didAppendBounds(bounds);
+    return bounds;
   }
 
   appendDynamicText(value: string): SimpleText {

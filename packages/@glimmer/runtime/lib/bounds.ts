@@ -84,3 +84,11 @@ export function clear(bounds: Bounds): Nullable<SimpleNode> {
     current = expect(next, 'invalid bounds');
   }
 }
+
+export function replace<T>(bounds: Bounds, replacer: (cursor: ICursor) => T): T {
+  let parent = bounds.parentElement();
+  const next = clear(bounds);
+
+  let cursor = Cursor({ parent, before: next });
+  return replacer(cursor);
+}

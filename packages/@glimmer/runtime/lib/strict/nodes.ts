@@ -1,107 +1,30 @@
-import type { ElementBuilder, Environment, ModifierInstance } from '@glimmer/interfaces';
+import type { ModifierInstance } from '@glimmer/interfaces';
 import type { Cache } from '@glimmer/validator';
-import { createCache, getValue, isConst } from '@glimmer/validator';
+import { createCache, getValue } from '@glimmer/validator';
 
-import { NewElementBuilder } from '../vm/element-builder';
+import type { PollResult, RenderNode, RenderNodeInstance, UpdateNode } from './render';
 
-export interface AppendContext {
-  env: Environment;
-  log?: DebugLog | undefined;
-}
+import { replace } from '../bounds';
+import { render, renderBlock, renderStatic } from './render';
 
-export interface DebugLog {
-  log: (type: string, phase: 'render' | 'update', value: unknown) => void;
-}
-
-export interface RenderNode<T extends unknown | unknown[]> {
-  (value: T): RenderNodeInstance;
-}
-
-export interface RenderNodeInstance {
-  append: (builder: ElementBuilder, ctx: AppendContext) => UpdateNode | void;
-}
-
-export type PollResult = 'initial' | 'valid' | 'invalid' | 'constant';
-
-export interface UpdateNode {
-  (): PollResult;
-}
-
-export const AttributeNode: RenderNode<string | { name: string; value: string }> = (attribute) => {
-  const { name, value } =
-    typeof attribute === 'string' ? { name: attribute, value: '' } : attribute;
-  return {
-    append: (builder) => {
-      builder.setStaticAttribute(name, value ?? '');
-    },
-  };
-};
-
-interface IfNodeOptions {
+export interface IfNodeOptions {
   condition: () => unknown;
   then: RenderNodeInstance;
-  else?: RenderNodeInstance;
+  else?: RenderNodeInstance | undefined;
 }
 
 export const IfNode: RenderNode<IfNodeOptions> = ({ condition, then, else: inverse }) => {
   const conditionCache = createCache(condition);
 
-  return {
-    append: (builder, ctx) => {
-      const initial = !!getValue(conditionCache);
-      const render = initial ? then : inverse;
-      const { env } = ctx;
-
-      if (isConst(conditionCache)) {
-        if (render) {
-          render.append(builder, ctx);
-        }
-        return;
+  return renderBlock('If', [conditionCache], {
+    render: (ctx, condition) => {
+      if (condition) {
+        return then.append(ctx);
+      } else if (inverse) {
+        return inverse.append(ctx);
       }
-
-      const block = builder.pushUpdatableBlock();
-      const updates = render?.append(builder, ctx);
-      builder.popBlock();
-
-      if (!updates) {
-        return;
-      }
-
-      let last = {
-        condition: initial,
-        updates,
-      };
-
-      builder.popBlock();
-
-      return () => {
-        const next = !!getValue(conditionCache);
-        if (next === last.condition) {
-          return last.updates();
-        } else {
-          last.condition = next;
-          const resumeBuilder = NewElementBuilder.resume(env, block);
-          const render = next ? then : inverse;
-
-          if (render) {
-            const updates = render?.append(resumeBuilder, ctx);
-
-            if (updates) {
-              last.updates = updates;
-              resumeBuilder.popBlock();
-              return 'invalid';
-            } else {
-              resumeBuilder.popBlock();
-              return 'constant';
-            }
-          }
-
-          resumeBuilder.popBlock();
-          return 'invalid';
-        }
-      };
     },
-  };
+  });
 };
 
 export const DynamicAttributeNode: RenderNode<{
@@ -110,49 +33,35 @@ export const DynamicAttributeNode: RenderNode<{
   trusting?: boolean;
 }> = ({ name, value, trusting = false }) => {
   const valueCache = createCache(value);
-  return {
-    append: (builder, { env }) => {
-      const initial = getValue(valueCache) as string;
 
-      if (isConst(valueCache)) {
-        builder.setStaticAttribute(name, initial);
-        return;
-      }
+  return render('DynamicAttribute', [valueCache], {
+    render: (ctx, value) => {
+      const node = ctx.buffer.setDynamicAttribute(name, value, trusting);
 
-      const node = builder.setDynamicAttribute(name, initial, trusting);
-      let prev = initial;
-
-      return () => {
-        const next = getValue(valueCache) as string;
-        if (next === prev) {
-          return 'valid';
-        } else {
-          node.update(next, env);
-          prev = next;
-          return isConst(valueCache) ? 'constant' : 'invalid';
-        }
+      return (next) => {
+        node.update(next, ctx.env);
       };
     },
-  };
+  });
 };
 
 export const ElementNode: RenderNode<{
   tag: string;
-  attributes?: RenderNodeInstance[];
-  modifiers?: ModifierInstance[];
-  children?: RenderNodeInstance[];
+  attributes?: RenderNodeInstance[] | undefined;
+  modifiers?: ModifierInstance[] | undefined;
+  children?: RenderNodeInstance[] | undefined;
 }> = (element) => {
   const { tag, attributes, modifiers, children } = element;
   const attrFrag = attributes ? FragmentNode(attributes) : null;
   const bodyFrag = children ? FragmentNode(children) : null;
 
   return {
-    append: (builder, ctx) => {
-      builder.openElement(tag);
-      const attrUpdates = cacheForUpdate(attrFrag?.append(builder, ctx));
-      builder.flushElement(modifiers);
-      const bodyUpdates = cacheForUpdate(bodyFrag?.append(builder, ctx));
-      builder.closeElement();
+    append: (ctx) => {
+      ctx.buffer.openElement(tag);
+      const attrUpdates = cacheForUpdate(attrFrag?.append(ctx));
+      ctx.buffer.flushElement(modifiers);
+      const bodyUpdates = cacheForUpdate(bodyFrag?.append(ctx));
+      ctx.buffer.closeElement();
 
       if (attrUpdates || bodyUpdates) {
         return () => {
@@ -193,10 +102,10 @@ function combine(...updates: (Cache<PollResult> | undefined)[]): PollResult {
 
 export const FragmentNode: RenderNode<RenderNodeInstance[]> = (nodes) => {
   return {
-    append: (builder, ctx) => {
+    append: (ctx) => {
       const updates: UpdateNode[] = [];
       for (const node of nodes) {
-        const update = node.append(builder, ctx);
+        const update = node.append(ctx);
         if (update) {
           updates.push(update);
         }
@@ -222,78 +131,79 @@ export const FragmentNode: RenderNode<RenderNodeInstance[]> = (nodes) => {
   };
 };
 
-export const TextNode: RenderNode<string> = (text) => ({
-  append: (builder) => {
-    builder.appendText(text);
-  },
-});
+export const TextNode: RenderNode<string> = (text) =>
+  renderStatic('Text', [text], { render: (ctx, text) => ctx.buffer.appendText(text) });
 
-export const HtmlNode: RenderNode<string> = (text) => ({
-  append: (builder) => {
-    builder.appendHTML(text);
-  },
-});
+export const HtmlNode: RenderNode<string> = (text) =>
+  renderStatic('Html', [text], { render: (ctx, text) => ctx.buffer.appendHTML(text) });
 
 export const DynamicTextNode: RenderNode<() => string> = (text) => {
   const textCache = createCache(text);
-  return {
-    append: (builder, { log }) => {
-      const initial = getValue(textCache) as string;
-      const node = builder.appendText(initial);
 
-      let last = { node, value: initial };
+  return render('~Text', [textCache], {
+    render: (ctx, text) => {
+      const node = ctx.buffer.appendDynamicText(text);
 
-      log?.log('TextNode', 'render', initial);
-
-      if (isConst(textCache)) {
-        return;
-      }
-
-      return (): PollResult => {
-        const next = getValue(textCache) as string;
-        if (next === last.value) {
-          return 'valid';
-        } else {
-          last.value = next;
-          last.node.nodeValue = next;
-
-          log?.log('TextNode', 'update', next);
-
-          return isConst(textCache) ? 'constant' : 'invalid';
-        }
+      return (next) => {
+        node.nodeValue = next;
       };
     },
-  };
+  });
 };
 
 export const DynamicHtmlNode: RenderNode<() => string> = (text) => {
   const textCache = createCache(text);
-  return {
-    append: (builder, { log }) => {
-      const initial = getValue(textCache) as string;
-      const node = builder.appendDynamicHTML(initial);
 
-      let last = { node, value: initial };
+  return render('~Html', [textCache], {
+    render: (ctx, text) => {
+      let bounds = ctx.buffer.appendDynamicHTML(text);
 
-      log?.log('TextNode', 'render', initial);
-
-      if (isConst(textCache)) {
-        return;
-      }
-
-      return (): PollResult => {
-        const next = getValue(textCache) as string;
-        if (next === last.value) {
-          return 'valid';
-        } else {
-          last.value = next;
-          last.node.nodeValue = next;
-
-          log?.log('TextNode', 'update', next);
-
-          return isConst(textCache) ? 'constant' : 'invalid';
-        }
+      return (next) => {
+        bounds = replace(bounds, (cursor) =>
+          ctx.env.getDOM().insertHTMLBefore(cursor.element, cursor.nextSibling, next)
+        );
       };
     },
+  });
+};
+
+export const AttributeNode: RenderNode<string | { name: string; value: string }> = (attribute) => {
+  const { name, value } =
+    typeof attribute === 'string' ? { name: attribute, value: '' } : attribute;
+  return {
+    append: ({ buffer }) => {
+      buffer.setStaticAttribute(name, value ?? '');
+    },
   };
+};
+
+export const nodes = {
+  if: (
+    condition: () => unknown,
+    { then, else: inverse }: { then: RenderNodeInstance; else?: RenderNodeInstance }
+  ) => {
+    return IfNode({ condition, then, else: inverse });
+  },
+  attr: (name: string, value: string | (() => string), trusting = false) => {
+    if (typeof value === 'function') {
+      return DynamicAttributeNode({ name, value, trusting });
+    } else {
+      return AttributeNode({ name, value });
+    }
+  },
+  el: (
+    tag: string,
+    options: {
+      attrs?: RenderNodeInstance[];
+      modifiers?: ModifierInstance[];
+      children?: RenderNodeInstance[];
+    } = {}
+  ) => {
+    return ElementNode({
+      tag,
+      attributes: options.attrs,
+      modifiers: options.modifiers,
+      children: options.children,
+    });
+  },
 };

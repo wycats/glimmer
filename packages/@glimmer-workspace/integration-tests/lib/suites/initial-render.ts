@@ -25,6 +25,7 @@ import { normalizeSnapshot } from '../snapshot';
 import { scenario, test } from '../test-decorator';
 import { testSuite } from '../test-helpers/module';
 import { stripTight } from '../test-helpers/strings';
+import { tracked } from '../test-helpers/tracked';
 
 export type IndividualSnapshot = 'up' | 'down' | SimpleNode;
 export type NodesSnapshot = IndividualSnapshot[];
@@ -331,8 +332,8 @@ export class ManualInitialRenderSuite {
     const title = cell('hello');
     const ctx = new TestContext(assert);
     const log: DebugLog = {
-      log: (type: string, phase: 'render' | 'update', value: unknown) => {
-        events.record(`${type}[${phase}] ${JSON.stringify(value)}`);
+      log: (type: string, phase: 'render' | 'update' | 'const', { args }: { args: unknown[] }) => {
+        events.record(`${type}[${phase}] ${args.map((a) => JSON.stringify(a)).join(', ')}`);
       },
     };
 
@@ -347,25 +348,24 @@ export class ManualInitialRenderSuite {
     ]);
 
     const result = ctx.append(render, { expect: '<div>hello<span>hello</span></div>', log });
-    events.expect('TextNode[render] "hello"', 'TextNode[render] "hello"');
+    events.expect('~Text[render] "hello"', '~Text[render] "hello"');
 
     title.set('goodbye');
     result.revalidate({ expect: '<div>goodbye<span>goodbye</span></div>' });
-    events.expect('TextNode[update] "goodbye"', 'TextNode[update] "goodbye"');
+    events.expect('~Text[update] "goodbye"', '~Text[update] "goodbye"');
 
     title.set('');
     result.revalidate({ expect: '<div><span></span></div>' });
-    events.expect('TextNode[update] ""', 'TextNode[update] ""');
+    events.expect('~Text[update] ""', '~Text[update] ""');
 
     title.set('hello');
     result.revalidate({ expect: '<div>hello<span>hello</span></div>' });
-    events.expect('TextNode[update] "hello"', 'TextNode[update] "hello"');
+    events.expect('~Text[update] "hello"', '~Text[update] "hello"');
 
     events.expect([]);
   }
 
   @scenario
-  @test
   'Simple blocks'({ assert }: Scenario) {
     const ctx = new TestContext(assert);
     const admin = cell(true);
@@ -389,28 +389,105 @@ export class ManualInitialRenderSuite {
 
     const p = ctx.element.firstChild!.firstChild!;
 
-    ctx.assertStableNodes(
-      () => {
-        admin.set(false);
-        result.revalidate({ expect: '<div><!----></div>' });
-      },
-      { except: p }
-    );
+    admin.set(false);
+    result.revalidate({ expect: '<div><!----></div>', stable: { except: p } });
 
     const comment = ctx.element.firstChild!.firstChild!;
 
-    ctx.assertStableNodes(
-      () => {
-        admin.set(true);
-        result.revalidate({ expect: '<div><p>chancancode</p></div>' });
-      },
-      { except: comment }
+    admin.set(true);
+    result.revalidate({ expect: '<div><p>chancancode</p></div>', stable: { except: comment } });
+
+    user.set('socanyou');
+    result.revalidate({ expect: '<div><p>socanyou</p></div>' });
+  }
+
+  @scenario
+  'Path expressions'({ assert }: Scenario) {
+    const ctx = new TestContext(assert);
+
+    class Foo {
+      @tracked bar = 'hello';
+    }
+
+    class Model {
+      @tracked foo = new Foo();
+    }
+
+    const model = new Model();
+
+    const result = ctx.append(
+      ElementNode({
+        tag: 'div',
+        children: [
+          DynamicTextNode(() => model.foo.bar),
+          ElementNode({ tag: 'span', children: [DynamicTextNode(() => model.foo.bar)] }),
+        ],
+      }),
+      { expect: '<div>hello<span>hello</span></div>' }
     );
 
-    ctx.assertStableNodes(() => {
-      user.set('socanyou');
-      result.revalidate({ expect: '<div><p>socanyou</p></div>' });
+    model.foo.bar = 'goodbye';
+    result.revalidate({ expect: '<div>goodbye<span>goodbye</span></div>' });
+
+    model.foo.bar = '';
+    result.revalidate({ expect: '<div><span></span></div>' });
+
+    model.foo.bar = 'hello';
+    result.revalidate({ expect: '<div>hello<span>hello</span></div>' });
+  }
+
+  @scenario
+  'Text curlies perform escaping'({ assert }: Scenario) {
+    const ctx = new TestContext(assert);
+    const title = cell('<strong>hello</strong>');
+
+    const result = ctx.append(
+      ElementNode({
+        tag: 'div',
+        children: [
+          DynamicTextNode(() => title.get()),
+          ElementNode({ tag: 'span', children: [DynamicTextNode(() => title.get())] }),
+        ],
+      }),
+      {
+        expect:
+          '<div>&lt;strong&gt;hello&lt;/strong&gt;<span>&lt;strong&gt;hello&lt;/strong&gt;</span></div>',
+      }
+    );
+
+    title.set('<i>goodbye</i>');
+    result.revalidate({
+      expect: '<div>&lt;i&gt;goodbye&lt;/i&gt;<span>&lt;i&gt;goodbye&lt;/i&gt;</span></div>',
     });
+
+    title.set('');
+    result.revalidate({ expect: '<div><span></span></div>' });
+
+    title.set('<strong>hello</strong>');
+    result.revalidate({
+      expect:
+        '<div>&lt;strong&gt;hello&lt;/strong&gt;<span>&lt;strong&gt;hello&lt;/strong&gt;</span></div>',
+    });
+  }
+
+  @scenario
+  'Rerender respects whitespace'({ assert }: Scenario) {
+    const ctx = new TestContext(assert);
+    const foo = cell('bar');
+
+    const result = ctx.append(
+      FragmentNode([TextNode('Hello '), DynamicTextNode(() => foo.get()), TextNode(' ')]),
+      { expect: 'Hello bar ' }
+    );
+
+    foo.set('baz');
+    result.revalidate({ expect: 'Hello baz ' });
+
+    foo.set('');
+    result.revalidate({ expect: 'Hello  ' });
+
+    foo.set('bar');
+    result.revalidate({ expect: 'Hello bar ' });
   }
 }
 
@@ -514,13 +591,17 @@ class TestContext {
     const result = this.rendered(options.expect);
 
     const appended = {
-      revalidate: (options: { expect: string }) => {
-        update?.();
-        result.updated(options.expect);
+      revalidate: (options: { expect: string; stable?: { except: SimpleNode | SimpleNode[] } }) => {
+        this.assertStableNodes(() => {
+          update?.();
+          result.updated(options.expect);
+        }, options.stable);
 
-        // no-op rerender
-        update?.();
-        result.updated(options.expect);
+        this.assertStableNodes(() => {
+          // no-op rerender
+          update?.();
+          result.updated(options.expect);
+        });
       },
     };
 
@@ -533,7 +614,7 @@ class TestContext {
   rendered(content: string) {
     const block = this.builder.popBlock();
 
-    this.#assert.step(`Expected content: ${content}`);
+    this.#assert.ok(true, `Expected content: ${content}`);
     this.#assert.strictEqual(
       toInnerHTML(this.element),
       content,
@@ -541,15 +622,13 @@ class TestContext {
     );
     this.#assert.strictEqual(boundsToHTML(block), content, `The block has the expected content`);
 
-    this.#assert.verifySteps([`Expected content: ${content}`]);
-
     // @todo assertStableRerender (it will be a noop in these static tests, but once it works, we
     // need to verify that it's a noop)
 
     return {
       block,
       updated: (expected: string) => {
-        this.#assert.step(`Expected content (updated): ${expected}`);
+        this.#assert.ok(true, `Expected content (updated): ${expected}`);
         this.#assert.strictEqual(
           toInnerHTML(this.element),
           expected,
@@ -560,8 +639,6 @@ class TestContext {
           expected,
           `The block has the expected content`
         );
-
-        this.#assert.verifySteps([`Expected content (updated): ${expected}`]);
       },
     };
   }

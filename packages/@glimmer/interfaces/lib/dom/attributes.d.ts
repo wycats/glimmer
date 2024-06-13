@@ -46,7 +46,7 @@ export interface DOMStack {
   appendHTML(string: string): Bounds;
   appendComment(string: string): SimpleComment;
 
-  appendDynamicHTML(value: string): void;
+  appendDynamicHTML(value: string): Bounds;
   appendDynamicText(value: string): SimpleText;
   appendDynamicFragment(value: SimpleDocumentFragment): void;
   appendDynamicNode(value: SimpleNode): void;

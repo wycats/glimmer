@@ -1,6 +1,6 @@
 import type { ElementBuilder } from '@glimmer/interfaces';
 
-import type { AppendContext, RenderNodeInstance, UpdateNode } from './nodes';
+import type { AppendContext, RenderNodeInstance, UpdateNode } from './render';
 
 export class DynamicTreeBuilder {
   readonly #builder: ElementBuilder;
@@ -10,6 +10,6 @@ export class DynamicTreeBuilder {
   }
 
   append(node: RenderNodeInstance, ctx: AppendContext): void | UpdateNode {
-    return node.append(this.#builder, ctx);
+    return node.append({ buffer: this.#builder, ...ctx });
   }
 }
